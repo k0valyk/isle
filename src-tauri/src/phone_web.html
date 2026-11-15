@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0b0f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Isle" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>Isle</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08080a;
+        --card: #15151a;
+        --fg: #f6f6f7;
+        --muted: #9b9ba6;
+        --accent: #3b82f6;
+        --border: rgba(255, 255, 255, 0.1);
+        --danger: #ef4444;
+        --ok: #22c55e;
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        padding: calc(18px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+        max-width: 560px;
+        margin: 0 auto;
+      }
+      header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+      .logo {
+        width: 36px; height: 36px; border-radius: 11px; background: #000;
+        border: 1px solid var(--border); display: grid; place-items: center;
+        font-weight: 700; color: var(--accent); font-size: 16px;
+      }
+      h1 { font-size: 20px; margin: 0; letter-spacing: -0.02em; }
+      .tagline { font-size: 11px; color: var(--muted); margin-top: 2px; }
+      .pill {
+        margin-left: auto; font-size: 10px; color: var(--muted);
+        border: 1px solid var(--border); border-radius: 999px; padding: 4px 9px;
+        display: inline-flex; align-items: center; gap: 5px;
+      }
+      .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
+      .dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+      .card {
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 16px; padding: 14px; margin-bottom: 12px;
+      }
+      h2 { font-size: 13px; margin: 0 0 10px; color: var(--fg); }
+      p { font-size: 12px; line-height: 1.5; color: var(--muted); margin: 0 0 10px; }
+      label { display: block; font-size: 11px; color: var(--muted); margin: 10px 0 6px; }
+      input, textarea {
+        width: 100%; border: 1px solid var(--border); background: #0d0d11;
+        color: var(--fg); border-radius: 11px; padding: 11px 12px;
+        font: inherit; font-size: 14px; outline: none;
+      }
+      input:focus, textarea:focus { border-color: var(--accent); }
+      textarea { min-height: 112px; resize: vertical; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      button {
+        flex: 1; min-width: 120px; border: 1px solid var(--border); background: #202027;
+        color: var(--fg); border-radius: 11px; padding: 11px 12px;
+        font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+      }
+      button.primary { background: var(--accent); border-color: transparent; color: #fff; }
+      button.ghost { background: transparent; }
+      button:disabled { opacity: 0.5; }
+      .code {
+        font-size: 26px; letter-spacing: 5px; font-variant-numeric: tabular-nums;
+        text-align: center; padding: 10px; background: #0d0d11; border-radius: 10px;
+        border: 1px solid var(--border); margin-bottom: 10px;
+      }
+      .file { font-size: 12px; color: var(--muted); margin-top: 8px; }
+      progress { width: 100%; height: 6px; accent-color: var(--accent); }
+      .log { min-height: 18px; font-size: 11px; color: var(--muted); margin-top: 10px; }
+      .log.ok { color: var(--ok); }
+      .log.err { color: var(--danger); }
+      footer { text-align: center; font-size: 10px; color: var(--muted); margin-top: 18px; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="logo">◉</span>
+      <div>
+        <h1>Isle</h1>
+        <div class="tagline" data-i18n="tagline">Живий острів для Windows</div>
+      </div>
+      <span class="pill"><span class="dot" id="dot"></span><span id="status" data-i18n="not_paired">Не підключено</span></span>
+    </header>
+
+    <section id="pairView" class="card">
+      <h2 data-i18n="pair_title">Підключення до ПК</h2>
+      <p data-i18n="pair_hint">Введи 6-значний код, який показано в Isle на комп’ютері, у вкладці «Телефон».</p>
+      <label for="code" data-i18n="code">Код пейрингу</label>
+      <div class="code" id="codeDisplay">••••••</div>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+      <div class="row">
+        <button class="primary" id="pairBtn" data-i18n="pair">Підключити</button>
+      </div>
+      <div class="log" id="pairLog"></div>
+    </section>
+
+    <section id="mainView" class="hidden">
+      <div class="card">
+        <h2 data-i18n="clipboard_title">Буфер обміну</h2>
+        <p data-i18n="clipboard_hint">Надішли текст на ПК або забери те, що скопійовано на комп’ютері.</p>
+        <textarea id="clipText" placeholder="Текст…"></textarea>
+        <div class="row">
+          <button class="primary" id="sendBtn" data-i18n="send_pc">Надіслати на ПК</button>
+          <button id="getBtn" data-i18n="get_pc">Взяти з ПК</button>
+        </div>
+        <div class="log" id="clipLog"></div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="files_title">Файли</h2>
+        <p data-i18n="files_hint">Файл з’явиться у теці «Завантаження\Isle Phone» на комп’ютері.</p>
+        <input id="file" type="file" />
+        <div class="row">
+          <button class="primary" id="uploadBtn" data-i18n="upload">Передати файл</button>
+        </div>
+        <div class="file" id="fileName"></div>
+        <progress id="progress" class="hidden" max="100" value="0"></progress>
+        <div class="log" id="fileLog"></div>
+      </div>
+
+      <div class="row">
+        <button class="ghost" id="unpairBtn" data-i18n="unpair">Від’єднати</button>
+      </div>
+    </section>
+
+    <footer>Isle · <span data-i18n="footer">локальна мережа, без хмари</span></footer>
+
+    <script>
+      const I18N = {
+        uk: {
+          tagline: "Живий острів для Windows", not_paired: "Не підключено", paired: "Підключено",
+          pair_title: "Підключення до ПК",
+          pair_hint: "Введи 6-значний код, який показано в Isle на комп’ютері, у вкладці «Телефон».",
+          code: "Код пейрингу", pair: "Підключити", clipboard_title: "Буфер обміну",
+          clipboard_hint: "Надішли текст на ПК або забери те, що скопійовано на комп’ютері.",
+          send_pc: "Надіслати на ПК", get_pc: "Взяти з ПК", files_title: "Файли",
+          files_hint: "Файл з’явиться у теці «Завантаження\\Isle Phone» на комп’ютері.",
+          upload: "Передати файл", unpair: "Від’єднати", footer: "локальна мережа, без хмари",
+          sent: "Надіслано", received: "Отримано", copied: "Текст на ПК",
+          uploading: "Передаю…", uploaded: "Файл передано", wrong: "Невірний код або ПК недоступний",
+          empty: "Порожньо", copied_note: "Скопійовано в буфер iPhone"
+        },
+        en: {
+          tagline: "A live island for Windows", not_paired: "Not paired", paired: "Connected",
+          pair_title: "Connect to your PC",
+          pair_hint: "Enter the 6-digit code shown in Isle on your computer, in the Phone tab.",
+          code: "Pairing code", pair: "Pair", clipboard_title: "Clipboard",
+          clipboard_hint: "Send text to your PC or fetch what is copied on the computer.",
+          send_pc: "Send to PC", get_pc: "Get from PC", files_title: "Files",
+          files_hint: "The file will appear in Downloads\\Isle Phone on your computer.",
+          upload: "Send file", unpair: "Unpair", footer: "local network, no cloud",
+          sent: "Sent", received: "Received", copied: "Text on PC",
+          uploading: "Uploading…", uploaded: "File sent", wrong: "Wrong code or PC is unreachable",
+          empty: "Empty", copied_note: "Copied to the iPhone clipboard"
+        },
+        ru: {
+          tagline: "Живой остров для Windows", not_paired: "Не подключено", paired: "Подключено",
+          pair_title: "Подключение к ПК",
+          pair_hint: "Введи 6-значный код, показанный в Isle на компьютере, во вкладке «Телефон».",
+          code: "Код пейринга", pair: "Подключить", clipboard_title: "Буфер обмена",
+          clipboard_hint: "Отправь текст на ПК или забери то, что скопировано на компьютере.",
+          send_pc: "Отправить на ПК", get_pc: "Взять с ПК", files_title: "Файлы",
+          files_hint: "Файл появится в папке «Загрузки\\Isle Phone» на компьютере.",
+          upload: "Передать файл", unpair: "Отключить", footer: "локальная сеть, без облака",
+          sent: "Отправлено", received: "Получено", copied: "Текст на ПК",
+          uploading: "Передаю…", uploaded: "Файл передан", wrong: "Неверный код или ПК недоступен",
+          empty: "Пусто", copied_note: "Скопировано в буфер iPhone"
+        }
+      };
+
+      const lang = (navigator.language || "uk").slice(0, 2);
+      const dict = I18N[lang] || I18N.en;
+      const $ = (id) => document.getElementById(id);
+      document.querySelectorAll("[data-i18n]").forEach((node) => {
+        const key = node.getAttribute("data-i18n");
+        if (dict[key]) node.textContent = dict[key];
+      });
+      document.documentElement.lang = I18N[lang] ? lang : "en";
+
+      const state = {
+        token: localStorage.getItem("isle_token") || "",
+        device: localStorage.getItem("isle_device") || "iPhone"
+      };
+
+      function setStatus(paired) {
+        $("dot").classList.toggle("on", paired);
+        $("status").textContent = paired ? dict.paired : dict.not_paired;
+        $("pairView").classList.toggle("hidden", paired);
+        $("mainView").classList.toggle("hidden", !paired);
+      }
+
+      function unpairLocal() {
+        localStorage.removeItem("isle_token");
+        state.token = "";
+        setStatus(false);
+      }
+
+      function checkAuth(response) {
+        if (response.status === 401) {
+          unpairLocal();
+          throw new Error("unauthorized");
+        }
+        return response;
+      }
+
+      function log(id, text, kind) {
+        const node = $(id);
+        node.textContent = text || "";
+        node.className = "log" + (kind ? " " + kind : "");
+      }
+
+      async function pair() {
+        const code = $("code").value.trim();
+        if (code.length !== 6) {
+          log("pairLog", dict.wrong, "err");
+          return;
+        }
+        $("pairBtn").disabled = true;
+        try {
+          const response = await fetch("/pair", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, device: state.device })
+          });
+          if (!response.ok) throw new Error("pair");
+          const data = await response.json();
+          state.token = data.token;
+          localStorage.setItem("isle_token", state.token);
+          setStatus(true);
+          log("pairLog", "");
+        } catch {
+          log("pairLog", dict.wrong, "err");
+        } finally {
+          $("pairBtn").disabled = false;
+        }
+      }
+
+      async function sendClipboard() {
+        const text = $("clipText").value;
+        if (!text.trim()) return;
+        try {
+          const response = await fetch("/clipboard", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Isle-Token": state.token },
+            body: JSON.stringify({ text })
+          });
+          checkAuth(response);
+          if (!response.ok) throw new Error("send");
+          log("clipLog", dict.sent, "ok");
+        } catch {
+          log("clipLog", dict.wrong, "err");
+        }
+      }
+
+      async function getClipboard() {
+        try {
+          const response = await fetch("/clipboard", {
+            headers: { "X-Isle-Token": state.token }
+          });
+          checkAuth(response);
+          if (!response.ok) throw new Error("get");
+          const data = await response.json();
+          $("clipText").value = data.text || "";
+          log("clipLog", data.text ? dict.copied : dict.empty, "ok");
+          if (data.text && navigator.clipboard) {
+            navigator.clipboard.writeText(data.text).catch(() => {});
+          }
+        } catch {
+          log("clipLog", dict.wrong, "err");
+        }
+      }
+
+      function uploadFile() {
+        const file = $("file").files[0];
+        if (!file) return;
+        $("fileName").textContent = file.name;
+        const bar = $("progress");
+        bar.classList.remove("hidden");
+        bar.value = 0;
+        log("fileLog", dict.uploading);
+        const request = new XMLHttpRequest();
+        request.open("POST", "/file?name=" + encodeURIComponent(file.name));
+        request.setRequestHeader("X-Isle-Token", state.token);
+        request.setRequestHeader("Content-Type", "application/octet-stream");
+        request.upload.onprogress = (event) => {
+          if (event.lengthComputable) bar.value = Math.round((event.loaded / event.total) * 100);
+        };
+        request.onload = () => {
+          if (request.status === 401) {
+            unpairLocal();
+            log("fileLog", dict.wrong, "err");
+          } else if (request.status >= 200 && request.status < 300) {
+            bar.value = 100;
+            log("fileLog", dict.uploaded, "ok");
+          } else {
+            log("fileLog", dict.wrong, "err");
+          }
+        };
+        request.onerror = () => log("fileLog", dict.wrong, "err");
+        request.send(file);
+      }
+
+      $("pairBtn").addEventListener("click", pair);
+      $("code").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") pair();
+      });
+      $("sendBtn").addEventListener("click", sendClipboard);
+      $("getBtn").addEventListener("click", getClipboard);
+      $("uploadBtn").addEventListener("click", uploadFile);
+      $("unpairBtn").addEventListener("click", () => {
+        localStorage.removeItem("isle_token");
+        state.token = "";
+        setStatus(false);
+      });
+
+      if (state.token) setStatus(true); else setStatus(false);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency directories
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+dist-ssr/
+*.local
+src-tauri/gen/
+src-tauri/target/
+Isle-Setup.exe
+Isle-portable.zip
+android-companion/**/build/
+android-companion/.gradle/
+hooks/**/target/
+
+# Environment
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Tauri
+src-tauri/target/**

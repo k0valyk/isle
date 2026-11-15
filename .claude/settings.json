@@ -1,0 +1,10 @@
+{
+  "skills": {
+    "windows-native-gotchas": true,
+    "island-motion": true,
+    "perf-audit": true,
+    "release-packaging": true,
+    "android-companion": true,
+    "i18n-a11y": true
+  }
+}
