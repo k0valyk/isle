@@ -1,5 +1,25 @@
 # Isle для macOS — план порту
 
+## Статус реалізації (каркас + ядро)
+
+Зроблено в коді (Windows-версія перевірена, macOS — ні, бо немає Mac):
+
+| Частина | Стан |
+|---|---|
+| Розділення платформ у Cargo (`[target.'cfg(windows)'.dependencies]`) | ✅ |
+| `src/macos/*.rs` — медіа, аудіо, статистика, скріншоти, звук, батарея, автозапуск, курсор, мережа | ✅ |
+| Острів: прозоре вікно, докінг, центрування, drag через `startDragging` | ✅ |
+| Таймер зі звуком (`afplay`, той самий WAV-сигнал) | ✅ |
+| Скріншоти через `screencapture` + редактор/повний екран | ✅ |
+| Статистика CPU/RAM/диск (`sysinfo`), батарея (`pmset`) | ✅ |
+| Автозапуск через LaunchAgent | ✅ |
+| Термінал (`/bin/zsh` через portable-pty), телефон, переклад, нотатки, буфер, погода, чат | ✅ |
+| Музика/обкладинки (MediaRemote), FFT-візуалізація (CoreAudio tap) | ⏳ наступний етап |
+| OCR, GPU-навантаження й температури, глобальні хоткеї (Accessibility) | ⏳ |
+
+Файли: `src-tauri/src/macos/`, `Cargo.toml`, `main.rs` (cfg-вибір модулів),
+`.github/workflows/macos.yml`, `docs/MACOS.md`.
+
 ## Головне обмеження
 
 - **Зібрати `.app`/`.dmg` можна лише на Mac** (Xcode Command Line Tools + Rust target
