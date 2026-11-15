@@ -5,6 +5,17 @@ Dynamic Island для Windows 10/11: капсулоподібний острів
 
 **Безкоштовно. Локально. Без телеметрії та обов'язкових акаунтів.** MIT.
 
+## Завантажити
+
+| Платформа | Файл | Що це |
+| --- | --- | --- |
+| Windows 10/11 | [Isle 1.6.0 (NSIS)](https://github.com/k0valyk/isle/releases/tag/v1.6.0) | Інсталятор, 6,5 MB |
+| macOS 13+ | [Isle 1.6.0 (universal .dmg)](https://github.com/k0valyk/isle/releases/tag/v1.6.0-macos) | Apple Silicon + Intel, 16,5 MB, без підпису: правий клік → Відкрити |
+
+macOS-збірка поки що без музики/FFT/OCR — див. [docs/MACOS.md](docs/MACOS.md).
+Збірка Windows лежить у релізах або збирається локально: `npm run tauri build`.
+
+
 ## Що вміє
 
 | Модуль | Стан | Що працює |
