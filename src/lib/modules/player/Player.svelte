@@ -248,6 +248,7 @@
     padding: 8px 14px 4px;
     position: relative;
     isolation: isolate;
+    overflow: hidden;
   }
 
   .backdrop {

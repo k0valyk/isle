@@ -185,9 +185,7 @@
   }
 
   .label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-size: 10.5px;
     color: var(--muted);
   }
 
