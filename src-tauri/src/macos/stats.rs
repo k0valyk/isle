@@ -26,6 +26,14 @@ pub struct SystemStats {
     pub refresh_hz: Option<u32>,
     pub screen_width: u32,
     pub screen_height: u32,
+    pub cpu_name: String,
+    pub gpu_name: String,
+    pub motherboard: String,
+    pub ram_modules: String,
+    pub os_name: String,
+    pub fps: Option<f32>,
+    pub fps_process: String,
+    pub fps_error: String,
     pub checked_at: i64,
 }
 
@@ -83,6 +91,22 @@ pub fn init(app: AppHandle) {
                 refresh_hz: None,
                 screen_width: 0,
                 screen_height: 0,
+                cpu_name: system
+                    .cpus()
+                    .first()
+                    .map(|cpu| cpu.brand().to_string())
+                    .unwrap_or_default(),
+                gpu_name: String::new(),
+                motherboard: String::new(),
+                ram_modules: String::new(),
+                os_name: [System::name(), System::os_version()]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                fps: None,
+                fps_process: String::new(),
+                fps_error: String::new(),
                 checked_at: chrono::Local::now().timestamp_millis(),
             };
 

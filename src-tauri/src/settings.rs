@@ -152,6 +152,9 @@ pub struct Settings {
     pub tray_enabled: bool,
     pub behavior: String,
     pub island_dock: String,
+    pub island_pinned: bool,
+    pub island_scene: String,
+    pub island_gif_url: String,
     pub auto_music_panel: bool,
     pub karaoke_line: bool,
     pub clipboard_watch: bool,
@@ -164,6 +167,9 @@ pub struct Settings {
     pub hotkey_collapse: String,
     pub hotkey_settings: String,
     pub hotkey_screenshot: String,
+    pub hotkey_play_pause: String,
+    pub hotkey_next: String,
+    pub hotkey_prev: String,
     pub autohide_fullscreen: bool,
     pub show_seconds: bool,
     pub show_battery: bool,
@@ -243,6 +249,9 @@ impl Default for Settings {
             tray_enabled: true,
             behavior: "hover".into(),
             island_dock: "top".into(),
+            island_pinned: false,
+            island_scene: "none".into(),
+            island_gif_url: String::new(),
             auto_music_panel: true,
             karaoke_line: true,
             clipboard_watch: true,
@@ -255,6 +264,9 @@ impl Default for Settings {
             hotkey_collapse: String::new(),
             hotkey_settings: String::new(),
             hotkey_screenshot: String::new(),
+            hotkey_play_pause: String::new(),
+            hotkey_next: String::new(),
+            hotkey_prev: String::new(),
             autohide_fullscreen: false,
             show_seconds: false,
             show_battery: false,
@@ -413,6 +425,12 @@ pub fn load() -> Settings {
     }
     if !matches!(settings.behavior.as_str(), "hover" | "click" | "double" | "always") {
         settings.behavior = "hover".into();
+    }
+    if !matches!(
+        settings.island_scene.as_str(),
+        "none" | "stars" | "aurora" | "bubbles" | "matrix" | "fps" | "gif"
+    ) {
+        settings.island_scene = "none".into();
     }
     if !matches!(
         settings.visualizer_style.as_str(),

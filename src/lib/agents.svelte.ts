@@ -20,11 +20,32 @@ export interface AgentsStatus {
   opencodePath: string | null;
 }
 
+export interface ModelUsage {
+  provider: string;
+  model: string;
+  label: string;
+  sessions: number;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cacheTokens: number;
+  cost: number;
+  contextUsed: number;
+  contextLimit: number | null;
+  contextLeft: number | null;
+  lastActive: number;
+}
+
 export const agents = $state<{
   events: AgentEvent[];
   status: AgentsStatus | null;
   loaded: boolean;
 }>({ events: [], status: null, loaded: false });
+
+export const usage = $state<{ models: ModelUsage[]; loaded: boolean }>({
+  models: [],
+  loaded: false,
+});
 
 let started = false;
 
@@ -56,6 +77,7 @@ export async function initAgents(): Promise<void> {
     }),
   ]);
   agents.loaded = true;
+  void refreshUsage();
   await listen<AgentEvent>("agent-event", (event) => {
     agents.events = [
       event.payload,
@@ -83,6 +105,15 @@ export async function refreshAgents(): Promise<void> {
     agents.status = await invoke<AgentsStatus>("agents_status");
   } catch {
     /* the hook server may be offline */
+  }
+}
+
+export async function refreshUsage(): Promise<void> {
+  try {
+    usage.models = await invoke<ModelUsage[]>("agent_usage");
+    usage.loaded = true;
+  } catch {
+    /* OpenCode may not be installed or the database may be locked */
   }
 }
 

@@ -44,3 +44,8 @@ Thumbs.db
 
 # Tauri
 src-tauri/target/**
+
+# CodeGraph local index
+.codegraph/
+# Local OpenCode workspace (personal skills junction, notes)
+.opencode/

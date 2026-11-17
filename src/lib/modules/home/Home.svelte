@@ -198,10 +198,8 @@
   .panel-title {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    gap: 5px;
+    font-size: 11px;
     color: var(--muted);
   }
 

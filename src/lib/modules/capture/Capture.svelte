@@ -164,11 +164,11 @@
     }
   }
 
-  async function openFullscreen(): Promise<void> {
+  async function openFullscreen(edit = false): Promise<void> {
     const target = selectedPath ?? last?.path ?? files[0]?.path;
     if (!target) return;
     try {
-      await invoke("open_capture_view", { path: target });
+      await invoke("open_capture_view", { path: target, edit });
     } catch (cause) {
       error = String(cause);
     }
@@ -190,7 +190,7 @@
   async function fullscreenEdit(): Promise<void> {
     if (!editorCanvas) return;
     await saveEdit();
-    await openFullscreen();
+    await openFullscreen(true);
   }
 
   async function copy(text: string): Promise<void> {
@@ -522,7 +522,7 @@
       <span class="spacer"></span>
       <button
         class="btn small"
-        onclick={openFullscreen}
+        onclick={() => void openFullscreen()}
         disabled={!preview}
         title={t("capture.fullscreen")}
       >
@@ -632,7 +632,7 @@
             <button class="btn" onclick={openEditor} disabled={!last && !files.length}>
               <Icon name="crop" size={13} />{t("capture.edit")}
             </button>
-            <button class="btn" onclick={openFullscreen} disabled={!preview}>
+            <button class="btn" onclick={() => void openFullscreen()} disabled={!preview}>
               <Icon name="expand" size={13} />{t("capture.fullscreen")}
             </button>
             <button class="btn" onclick={runOcr} disabled={ocrBusy || (!last && !files.length)}>

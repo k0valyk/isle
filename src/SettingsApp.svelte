@@ -54,6 +54,18 @@
     { id: "eyes", label: "settings.char_eyes" },
     { id: "dots", label: "settings.char_dots" },
     { id: "pill", label: "settings.char_pill" },
+    { id: "cat", label: "settings.char_cat" },
+    { id: "orb", label: "settings.char_orb" },
+  ];
+
+  const SCENES = [
+    { id: "none", label: "settings.scene_none" },
+    { id: "stars", label: "settings.scene_stars" },
+    { id: "aurora", label: "settings.scene_aurora" },
+    { id: "bubbles", label: "settings.scene_bubbles" },
+    { id: "matrix", label: "settings.scene_matrix" },
+    { id: "fps", label: "settings.scene_fps" },
+    { id: "gif", label: "settings.scene_gif" },
   ];
 
   const PROVIDERS = [
@@ -262,6 +274,20 @@
           </label>
 
           <label class="row">
+            <span class="row-label">{t("settings.island_pinned")}</span>
+            <input
+              type="checkbox"
+              class="switch"
+              checked={store.settings.island_pinned}
+              onchange={(event) =>
+                updateSettings({
+                  island_pinned: (event.currentTarget as HTMLInputElement).checked,
+                })}
+            />
+          </label>
+          <p class="hint">{t("settings.pin_hint")}</p>
+
+          <label class="row">
             <span class="row-label">{t("settings.hover_delay")}</span>
             <span class="field">
               <input
@@ -461,6 +487,40 @@
               <option value="calm">{t("settings.motion_calm")}</option>
             </select>
           </label>
+
+          <label class="row">
+            <span class="row-label">{t("settings.scene")}</span>
+            <select
+              value={store.settings.island_scene}
+              onchange={(event) =>
+                updateSettings({
+                  island_scene: (event.currentTarget as HTMLSelectElement).value,
+                })}
+            >
+              {#each SCENES as scene}
+                <option value={scene.id}>{t(scene.label)}</option>
+              {/each}
+            </select>
+          </label>
+
+          {#if store.settings.island_scene === "gif"}
+            <div class="row static">
+              <span class="row-label">{t("settings.scene_gif_url")}</span>
+              <span class="field">
+                <input
+                  class="wide"
+                  type="url"
+                  placeholder="https://…/loop.gif"
+                  value={store.settings.island_gif_url}
+                  oninput={(event) =>
+                    updateSettings({
+                      island_gif_url: (event.currentTarget as HTMLInputElement).value,
+                    })}
+                />
+              </span>
+            </div>
+            <p class="hint">{t("settings.scene_gif_hint")}</p>
+          {/if}
 
           <label class="row">
             <span class="row-label">{t("settings.lyrics_style")}</span>
@@ -834,6 +894,33 @@
             />
           </div>
 
+          <div class="row">
+            <span class="row-label">{t("settings.hotkey_play_pause")}</span>
+            <HotkeyInput
+              value={store.settings.hotkey_play_pause}
+              label={t("settings.hotkey_play_pause")}
+              onchange={(value) => updateSettings({ hotkey_play_pause: value })}
+            />
+          </div>
+
+          <div class="row">
+            <span class="row-label">{t("settings.hotkey_next")}</span>
+            <HotkeyInput
+              value={store.settings.hotkey_next}
+              label={t("settings.hotkey_next")}
+              onchange={(value) => updateSettings({ hotkey_next: value })}
+            />
+          </div>
+
+          <div class="row">
+            <span class="row-label">{t("settings.hotkey_prev")}</span>
+            <HotkeyInput
+              value={store.settings.hotkey_prev}
+              label={t("settings.hotkey_prev")}
+              onchange={(value) => updateSettings({ hotkey_prev: value })}
+            />
+          </div>
+
           <div class="row static">
             <span class="row-label">{t("settings.hotkeys_reset")}</span>
             <button
@@ -845,6 +932,9 @@
                   hotkey_collapse: "",
                   hotkey_settings: "",
                   hotkey_screenshot: "",
+                  hotkey_play_pause: "",
+                  hotkey_next: "",
+                  hotkey_prev: "",
                 })}
             >
               <Icon name="refresh" size={12} />
@@ -896,7 +986,7 @@
   .settings {
     height: 100vh;
     display: grid;
-    grid-template-columns: 208px 1fr;
+    grid-template-columns: 232px 1fr;
     background: var(--bg);
     color: var(--fg);
     overflow: hidden;
@@ -905,8 +995,8 @@
   .sidebar {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 14px 10px;
+    gap: 12px;
+    padding: 16px 12px;
     border-right: 1px solid var(--border);
     background: var(--bg-elevated);
   }
@@ -961,13 +1051,14 @@
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     border: 1px solid transparent;
     background: transparent;
     color: var(--muted);
-    border-radius: 8px;
-    padding: 7px 9px;
-    font-size: 12px;
+    border-radius: var(--radius-control);
+    padding: 8px 10px;
+    min-height: 34px;
+    font-size: 12.5px;
     text-align: left;
     transition: background 0.14s ease, color 0.14s ease;
   }
@@ -980,7 +1071,6 @@
   .nav-item.active {
     background: var(--surface-strong);
     color: var(--fg);
-    border-color: var(--border);
   }
 
   .sidebar-footer {
@@ -1026,9 +1116,7 @@
   }
 
   .preview-label {
-    font-size: 9.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-size: 11px;
     color: var(--muted);
   }
 
@@ -1036,26 +1124,27 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 18px 22px 26px;
+    padding: 24px 28px 32px;
   }
 
   .group {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-width: 640px;
+    max-width: 680px;
   }
 
   h2 {
-    margin: 0 0 10px;
-    font-size: 16px;
-    font-weight: 650;
+    margin: 0 0 16px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   h3 {
-    margin: 16px 0 4px;
-    font-size: 12.5px;
-    font-weight: 650;
+    margin: 20px 0 6px;
+    font-size: 13px;
+    font-weight: 600;
   }
 
   .row {
@@ -1063,10 +1152,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 9px 10px;
-    border-radius: 9px;
-    font-size: 12px;
-    min-height: 38px;
+    padding: 10px 12px;
+    border-radius: var(--radius-control);
+    font-size: var(--text-md);
+    min-height: 44px;
   }
 
   .row:hover {
@@ -1289,9 +1378,7 @@
   }
 
   .widget-size {
-    font-size: 8.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-size: 10px;
     color: var(--muted);
     border: 1px solid var(--border);
     border-radius: 999px;

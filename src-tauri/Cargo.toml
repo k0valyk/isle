@@ -1,6 +1,6 @@
 [package]
 name = "isle"
-version = "1.6.0"
+version = "1.6.1"
 description = "Isle - a live island for Windows"
 edition = "2021"
 rust-version = "1.77"
@@ -48,8 +48,14 @@ windows = { version = "0.62", features = [
     "Media_Ocr",
     "Storage",
     "Storage_Streams",
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
     "Win32_System_Performance",
+    "Win32_System_Threading",
     "Win32_System_WinRT",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 windows-future = "0.3"
 windows-collections = "0.3"

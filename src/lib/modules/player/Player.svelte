@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Icon from "../../components/Icon.svelte";
+  import SmoothSlider from "../../components/SmoothSlider.svelte";
   import Visualizer from "../../components/Visualizer.svelte";
   import { store, t } from "../../store.svelte";
   import {
@@ -8,10 +10,36 @@
     isPlaying,
     media,
     mediaControl,
+    refreshVolume,
+    setVolume,
+    toggleMute,
+    volume,
   } from "../../media.svelte";
 
   let dragging = $state(false);
   let dragValue = $state(0);
+  let volumeDragging = $state(false);
+
+  const volumePercent = $derived(Math.round(volume.level * 100));
+
+  function volumeInput(next: number): void {
+    volumeDragging = true;
+    volume.level = next;
+    volume.muted = next === 0 ? volume.muted : false;
+  }
+
+  function volumeCommit(next: number): void {
+    volumeDragging = false;
+    void setVolume(next);
+  }
+
+  onMount(() => {
+    void refreshVolume();
+    const timer = setInterval(() => {
+      if (!volumeDragging) void refreshVolume();
+    }, 6000);
+    return () => clearInterval(timer);
+  });
 
   const current = $derived(media.current);
   const duration = $derived(current.duration || 0);
@@ -36,15 +64,20 @@
     artBroken = false;
   });
 
-  function seekInput(event: Event): void {
+  function seekInput(next: number): void {
     dragging = true;
-    dragValue = Number((event.currentTarget as HTMLInputElement).value);
+    dragValue = next * duration;
   }
 
-  function seekCommit(): void {
-    if (!dragging) return;
+  function seekCommit(next: number): void {
     dragging = false;
-    void mediaControl("seek", Math.round(dragValue));
+    void mediaControl("seek", Math.round(next * duration));
+  }
+
+  function seekBy(seconds: number): void {
+    if (!current.active || duration <= 0) return;
+    const target = Math.max(0, Math.min(duration, media.position + seconds));
+    void mediaControl("seek", Math.round(target));
   }
 </script>
 
@@ -80,17 +113,24 @@
         </div>
 
         <div class="controls">
-          <button class="btn icon-only" aria-label={t("player.prev")} onclick={() => mediaControl("previous")}>
+          <button class="btn icon-only" aria-label={t("player.prev")} title={t("player.prev")} onclick={() => mediaControl("previous")}>
             <Icon name="skip-back" size={16} />
+          </button>
+          <button class="btn icon-only seek-jump" aria-label={t("player.rewind")} title={t("player.rewind")} onclick={() => seekBy(-15)}>
+            <Icon name="rewind" size={15} />
           </button>
           <button
             class="btn icon-only play"
             aria-label={isPlaying() ? t("player.pause") : t("player.play")}
+            title={isPlaying() ? t("player.pause") : t("player.play")}
             onclick={() => mediaControl("play_pause")}
           >
             <Icon name={isPlaying() ? "pause" : "play"} size={16} />
           </button>
-          <button class="btn icon-only" aria-label={t("player.next")} onclick={() => mediaControl("next")}>
+          <button class="btn icon-only seek-jump" aria-label={t("player.forward")} title={t("player.forward")} onclick={() => seekBy(15)}>
+            <Icon name="forward" size={15} />
+          </button>
+          <button class="btn icon-only" aria-label={t("player.next")} title={t("player.next")} onclick={() => mediaControl("next")}>
             <Icon name="skip-forward" size={16} />
           </button>
         </div>
@@ -99,21 +139,33 @@
 
     <div class="timeline">
       <span class="time">{formatTrackTime(shownPosition)}</span>
-      <input
-        class="seek"
-        type="range"
-        min="0"
-        max={Math.max(duration, 1)}
-        step="1"
-        value={shownPosition}
+      <SmoothSlider
+        value={progress / 100}
+        label={t("player.progress")}
         disabled={duration <= 0}
-        style:--progress={`${progress}%`}
-        aria-label={t("player.progress")}
-        oninput={seekInput}
-        onchange={seekCommit}
-        onpointerup={seekCommit}
+        onInput={seekInput}
+        onCommit={seekCommit}
       />
       <span class="time">{formatTrackTime(duration)}</span>
+    </div>
+
+    <div class="mixer" class:muted={volume.muted || volume.level === 0}>
+      <button
+        class="btn icon-only volume-btn"
+        aria-label={volume.muted ? t("player.unmute") : t("player.mute")}
+        title={volume.muted ? t("player.unmute") : t("player.mute")}
+        aria-pressed={volume.muted}
+        onclick={() => void toggleMute()}
+      >
+        <Icon name={volume.muted || volume.level === 0 ? "volume-off" : "volume"} size={14} />
+      </button>
+      <SmoothSlider
+        value={volume.level}
+        label={t("player.volume")}
+        onInput={volumeInput}
+        onCommit={volumeCommit}
+      />
+      <span class="volume-value">{volumePercent}%</span>
     </div>
 
     {#if isPlaying()}
@@ -164,6 +216,24 @@
     <div class="body">
       <span class="title">{t("player.no_music")}</span>
       <p class="hint">{t("player.no_music_hint")}</p>
+    </div>
+    <div class="empty-volume" class:muted={volume.muted || volume.level === 0}>
+      <button
+        class="btn icon-only volume-btn"
+        aria-label={volume.muted ? t("player.unmute") : t("player.mute")}
+        title={volume.muted ? t("player.unmute") : t("player.mute")}
+        aria-pressed={volume.muted}
+        onclick={() => void toggleMute()}
+      >
+        <Icon name={volume.muted || volume.level === 0 ? "volume-off" : "volume"} size={15} />
+      </button>
+      <SmoothSlider
+        value={volume.level}
+        label={t("player.volume")}
+        onInput={volumeInput}
+        onCommit={volumeCommit}
+      />
+      <span class="volume-value">{volumePercent}%</span>
     </div>
   {/if}
 </div>
@@ -317,8 +387,9 @@
   }
 
   .title {
-    font-size: 16px;
-    font-weight: 650;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -347,6 +418,54 @@
     color: #fff;
   }
 
+  .seek-jump {
+    color: var(--muted);
+  }
+
+  .seek-jump :global(svg) {
+    opacity: 0.9;
+  }
+
+  .volume-btn {
+    color: var(--muted);
+    flex: none;
+  }
+
+  .mixer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .mixer:hover,
+  .mixer:focus-within {
+    border-color: color-mix(in srgb, var(--live-accent) 30%, var(--border));
+    background: var(--surface);
+  }
+
+  .mixer.muted {
+    opacity: 0.78;
+  }
+
+  .mixer.muted .volume-btn {
+    color: var(--danger);
+  }
+
+  .volume-value {
+    min-width: 26px;
+    font-size: 8.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    flex: none;
+  }
+
   .timeline {
     display: flex;
     align-items: center;
@@ -360,36 +479,6 @@
   .time {
     min-width: 28px;
     text-align: center;
-  }
-
-  .seek {
-    flex: 1;
-    appearance: none;
-    height: 3px;
-    border-radius: 999px;
-    background: linear-gradient(
-      to right,
-      var(--accent) 0,
-      var(--accent) var(--progress),
-      var(--surface-strong) var(--progress),
-      var(--surface-strong) 100%
-    );
-    accent-color: var(--accent);
-    cursor: pointer;
-  }
-
-  .seek::-webkit-slider-thumb {
-    appearance: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--fg);
-    border: none;
-  }
-
-  .seek:disabled {
-    opacity: 0.5;
-    cursor: default;
   }
 
   .lyrics {
@@ -435,7 +524,6 @@
     font-weight: 650;
     transform: translateX(5px) scale(1.03);
     opacity: 1;
-    text-shadow: 0 0 20px color-mix(in srgb, var(--live-accent) 60%, transparent);
   }
 
   /* Pop: the active line springs forward, neighbours recede. */
@@ -496,17 +584,6 @@
     scrollbar-width: none;
   }
 
-  .plain {
-    margin: 0;
-    font-size: 11px;
-    line-height: 1.45;
-    color: var(--muted);
-    white-space: pre-wrap;
-    overflow-y: auto;
-    max-height: 100%;
-    scrollbar-width: none;
-  }
-
   .plain::-webkit-scrollbar {
     display: none;
   }
@@ -515,6 +592,32 @@
     font-size: 11px;
     color: var(--muted);
     text-align: center;
+  }
+
+  .empty-volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(300px, 90%);
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    animation: track-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .empty-volume .volume-btn {
+    color: var(--muted);
+    flex: none;
+  }
+
+  .empty-volume:hover .volume-btn,
+  .empty-volume:focus-within .volume-btn {
+    color: var(--fg);
+  }
+
+  .empty-volume.muted .volume-btn {
+    color: var(--danger);
   }
 
   .body {

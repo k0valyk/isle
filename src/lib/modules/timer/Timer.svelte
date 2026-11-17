@@ -178,10 +178,10 @@
   }
 
   .clock {
-    font-size: 36px;
-    font-weight: 650;
+    font-size: 38px;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -1px;
+    letter-spacing: -1.2px;
   }
 
   .label {

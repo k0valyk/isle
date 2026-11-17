@@ -10,7 +10,10 @@
     initAgents,
     installOpenCode,
     refreshAgents,
+    refreshUsage,
     testAgent,
+    usage,
+    type ModelUsage,
   } from "../../agents.svelte";
 
   let copied = $state(false);
@@ -38,6 +41,22 @@
       second: "2-digit",
       hour12: false,
     });
+  }
+
+  function compact(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
+    return String(Math.round(value));
+  }
+
+  function usedPercent(item: ModelUsage): number {
+    if (!item.contextLimit || item.contextUsed <= 0) return 0;
+    return Math.max(2, Math.min(100, (item.contextUsed / item.contextLimit) * 100));
+  }
+
+  function leftLabel(item: ModelUsage): string {
+    if (item.contextLeft === null) return "—";
+    return `${compact(item.contextLeft)} ${t("agents.left")}`;
   }
 
   function since(ts: number): string {
@@ -105,8 +124,13 @@
   onMount(() => {
     void initAgents();
     void refreshAgents();
+    void refreshUsage();
     const handle = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(handle);
+    const usageHandle = setInterval(() => void refreshUsage(), 5000);
+    return () => {
+      clearInterval(handle);
+      clearInterval(usageHandle);
+    };
   });
 </script>
 
@@ -146,6 +170,32 @@
       <Icon name="trash" size={12} />
     </button>
   </div>
+
+  {#if usage.models.length}
+    <div class="usage">
+      <div class="usage-head">
+        <span class="usage-title"><Icon name="activity" size={11} />{t("agents.usage")}</span>
+        <span class="usage-hint">{t("agents.usage_live")}</span>
+      </div>
+      <div class="usage-list">
+        {#each usage.models.slice(0, 3) as item (item.provider + item.model)}
+          <div class="usage-item">
+            <div class="usage-line">
+              <span class="usage-model" title={`${item.provider} / ${item.model}`}>{item.label}</span>
+              <span class="usage-cost">${item.cost.toFixed(3)}</span>
+            </div>
+            <div class="usage-bar" title={`${compact(item.contextUsed)} / ${item.contextLimit ? compact(item.contextLimit) : "—"}`}>
+              <span style:width={`${usedPercent(item)}%`}></span>
+            </div>
+            <div class="usage-meta">
+              <span>{compact(item.inputTokens + item.outputTokens + item.reasoningTokens)} {t("agents.tokens")}</span>
+              <span>{leftLabel(item)}</span>
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <div class="integration">
     <span class="integration-icon" class:installed={status?.opencodePlugin === true}>
@@ -298,6 +348,119 @@
 
   .endpoint:hover {
     color: var(--fg);
+  }
+
+  .usage {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface) 62%, transparent);
+    animation: usage-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .usage-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .usage-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+  }
+
+  .usage-hint {
+    font-size: 7.5px;
+    color: var(--muted);
+  }
+
+  .usage-list {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .usage-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .usage-item {
+    flex: 1 1 0;
+    min-width: 112px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 3px 5px;
+    border-radius: 5px;
+    background: var(--surface);
+  }
+
+  .usage-line,
+  .usage-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .usage-model {
+    font-size: 8.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .usage-cost {
+    font-size: 7.5px;
+    color: #22c55e;
+    font-variant-numeric: tabular-nums;
+    flex: none;
+  }
+
+  .usage-bar {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--surface-strong);
+    overflow: hidden;
+  }
+
+  .usage-bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--live-accent), #93c5fd);
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .usage-meta {
+    font-size: 7px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  @keyframes usage-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .integration {

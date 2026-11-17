@@ -666,10 +666,12 @@ pub async fn open_capture_view(
     app: AppHandle,
     state: State<'_, CaptureViewState>,
     path: String,
+    edit: Option<bool>,
 ) -> Result<(), String> {
     if !Path::new(&path).exists() {
         return Err("Screenshot file is missing".into());
     }
+    let edit = edit.unwrap_or(false);
     if let Ok(mut guard) = state.path.lock() {
         *guard = Some(path.clone());
     }
@@ -679,16 +681,24 @@ pub async fn open_capture_view(
         let _ = window.set_fullscreen(true);
         let _ = window.set_focus();
         let _ = app.emit_to("capture-view", "capture-view-updated", ());
+        if edit {
+            let _ = app.emit_to("capture-view", "capture-view-edit", ());
+        }
         return Ok(());
     }
     // Create the fullscreen viewer only when it is first used: a permanently
     // loaded WebView2 window costs ~40 MB of private memory at all times.
     // Window creation must happen off the command caller's thread.
     tauri::async_runtime::spawn_blocking(move || {
+        let url = if edit {
+            "capture-view.html?edit=1"
+        } else {
+            "capture-view.html"
+        };
         let window = tauri::WebviewWindowBuilder::new(
             &app,
             "capture-view",
-            tauri::WebviewUrl::App("capture-view.html".into()),
+            tauri::WebviewUrl::App(url.into()),
         )
         .title("Isle — Screenshot")
         .inner_size(1280.0, 800.0)

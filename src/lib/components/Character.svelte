@@ -89,6 +89,20 @@
         <span class="pupil"></span>
         <span class="pupil"></span>
       </span>
+    {:else if variant === "cat"}
+      <span class="cat">
+        <span class="ear left"></span>
+        <span class="ear right"></span>
+        <span class="cat-eye"><span class="pupil"></span></span>
+        <span class="cat-eye"><span class="pupil"></span></span>
+        <span class="cat-tail"></span>
+      </span>
+    {:else if variant === "orb"}
+      <span class="orb">
+        <span class="orb-core"></span>
+        <span class="orb-ring"></span>
+        <span class="orb-moon"></span>
+      </span>
     {:else}
       <span class="eye">
         <span class="pupil"></span>
@@ -186,6 +200,145 @@
     height: 4.4px;
   }
 
+  .cat {
+    position: relative;
+    width: 24px;
+    height: 15px;
+    border-radius: 8px 8px 10px 10px;
+    background: #151519;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+      0 0 9px color-mix(in srgb, var(--accent) 40%, transparent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .ear {
+    position: absolute;
+    top: -4px;
+    width: 6px;
+    height: 7px;
+    background: #151519;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+    filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.45));
+  }
+
+  .ear.left {
+    left: 2px;
+    transform: rotate(-10deg);
+  }
+
+  .ear.right {
+    right: 2px;
+    transform: rotate(10deg);
+  }
+
+  .cat-eye {
+    width: 4px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f4f4f5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    animation: blink 5.4s infinite;
+  }
+
+  .cat-eye .pupil {
+    width: 2.2px;
+    height: 3.4px;
+    background: #101012;
+  }
+
+  .cat-tail {
+    position: absolute;
+    right: -8px;
+    bottom: 0;
+    width: 8px;
+    height: 9px;
+    border-right: 2px solid #f4f4f5;
+    border-bottom: 2px solid #f4f4f5;
+    border-radius: 0 0 8px 0;
+    transform-origin: bottom left;
+    animation: cat-tail 2.2s ease-in-out infinite;
+  }
+
+  @keyframes cat-tail {
+    0%,
+    100% {
+      transform: rotate(-10deg);
+    }
+    50% {
+      transform: rotate(14deg);
+    }
+  }
+
+  .orb {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .orb-core {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #fff, var(--accent) 55%, #1e3a8a);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 75%, transparent);
+    animation: orb-pulse 2.6s ease-in-out infinite;
+  }
+
+  .orb-ring {
+    position: absolute;
+    inset: 1px;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--accent) 65%, transparent);
+    transform: rotateX(64deg);
+    animation: orb-spin 4.2s linear infinite;
+  }
+
+  .orb-moon {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 5px #fff;
+    animation: orb-orbit 3.6s linear infinite;
+  }
+
+  @keyframes orb-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      filter: brightness(1);
+    }
+    50% {
+      transform: scale(1.08);
+      filter: brightness(1.25);
+    }
+  }
+
+  @keyframes orb-spin {
+    to {
+      transform: rotateX(64deg) rotate(360deg);
+    }
+  }
+
+  @keyframes orb-orbit {
+    from {
+      transform: rotate(0deg) translateX(9px) rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg) translateX(9px) rotate(-360deg);
+    }
+  }
+
   @keyframes blink {
     0%,
     92%,
@@ -209,6 +362,11 @@
 
   :global(:root[data-reduced-motion="true"]) .eye,
   :global(:root[data-reduced-motion="true"]) .dot,
+  :global(:root[data-reduced-motion="true"]) .cat-eye,
+  :global(:root[data-reduced-motion="true"]) .cat-tail,
+  :global(:root[data-reduced-motion="true"]) .orb-core,
+  :global(:root[data-reduced-motion="true"]) .orb-ring,
+  :global(:root[data-reduced-motion="true"]) .orb-moon,
   :global(:root[data-reduced-motion="true"]) .character.playing {
     animation: none;
   }

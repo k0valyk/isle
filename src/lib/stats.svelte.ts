@@ -17,6 +17,14 @@ export interface SystemStats {
   refreshHz: number | null;
   screenWidth: number;
   screenHeight: number;
+  cpuName: string;
+  gpuName: string;
+  motherboard: string;
+  ramModules: string;
+  osName: string;
+  fps: number | null;
+  fpsProcess: string;
+  fpsError: string;
   checkedAt: number;
 }
 

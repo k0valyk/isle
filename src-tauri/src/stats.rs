@@ -77,11 +77,29 @@ pub struct SystemStats {
     pub refresh_hz: Option<u32>,
     pub screen_width: u32,
     pub screen_height: u32,
+    pub cpu_name: String,
+    pub gpu_name: String,
+    pub motherboard: String,
+    pub ram_modules: String,
+    pub os_name: String,
+    pub fps: Option<f32>,
+    pub fps_process: String,
+    pub fps_error: String,
     pub checked_at: i64,
+}
+
+#[derive(Clone, Default)]
+struct HardwareInfo {
+    cpu_name: String,
+    gpu_name: String,
+    motherboard: String,
+    ram_modules: String,
+    os_name: String,
 }
 
 pub struct StatsState {
     latest: Mutex<SystemStats>,
+    hardware: Mutex<HardwareInfo>,
 }
 
 #[tauri::command]
@@ -254,6 +272,65 @@ fn hidden_command(program: &str) -> std::process::Command {
     command
 }
 
+fn read_hardware() -> HardwareInfo {
+    // One WMI round-trip at startup. These values never change while the app
+    // runs, so keeping them cached avoids spawning PowerShell every second.
+    let script = "$ErrorActionPreference='SilentlyContinue'; \
+        $cpu=(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name); \
+        $gpu=(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Microsoft Basic|Remote|Virtual|Parsec' } | Select-Object -First 1 -ExpandProperty Name); \
+        $boardItem=Get-CimInstance Win32_BaseBoard | Select-Object -First 1; \
+        $board=('{0} {1}' -f $boardItem.Manufacturer, $boardItem.Product).Trim(); \
+        $modules=@(Get-CimInstance Win32_PhysicalMemory); \
+        $ram=($modules | ForEach-Object { '{0:N0} GB' -f ($_.Capacity/1GB) }) -join ' + '; \
+        $speed=($modules | Select-Object -First 1 -ExpandProperty ConfiguredClockSpeed); \
+        $os=(Get-CimInstance Win32_OperatingSystem | Select-Object -First 1 -ExpandProperty Caption); \
+        [PSCustomObject]@{ cpu=$cpu; gpu=$gpu; board=$board; ram=$ram; speed=$speed; os=$os } | ConvertTo-Json -Compress";
+    let output = match hidden_command("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return HardwareInfo::default(),
+    };
+    let raw = String::from_utf8_lossy(&output.stdout);
+    let value: serde_json::Value = match serde_json::from_str(raw.trim()) {
+        Ok(value) => value,
+        Err(_) => return HardwareInfo::default(),
+    };
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(|item| item.as_str())
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    };
+    let speed = value
+        .get("speed")
+        .and_then(|item| item.as_u64())
+        .filter(|speed| *speed > 0);
+    let mut ram = text("ram");
+    if let Some(speed) = speed {
+        if !ram.is_empty() {
+            ram = format!("{ram} · {speed} MHz");
+        }
+    }
+    HardwareInfo {
+        cpu_name: text("cpu"),
+        gpu_name: text("gpu"),
+        motherboard: text("board"),
+        ram_modules: ram,
+        os_name: text("os"),
+    }
+}
+
 fn read_gpu_temperature() -> Option<f32> {
     let output = hidden_command("nvidia-smi")
         .args([
@@ -326,6 +403,22 @@ pub fn init(app: AppHandle) {
     let temperatures = Arc::new(Mutex::new((None, None)));
     app.manage(StatsState {
         latest: Mutex::new(SystemStats::default()),
+        hardware: Mutex::new(HardwareInfo::default()),
+    });
+
+    let hardware_app = app.clone();
+    std::thread::spawn(move || {
+        // Give the first stats sample and the UI priority; WMI can take a
+        // moment on cold starts.
+        std::thread::sleep(Duration::from_millis(1800));
+        let info = read_hardware();
+        if let Ok(mut guard) = hardware_app
+            .state::<StatsState>()
+            .hardware
+            .lock()
+        {
+            *guard = info;
+        }
     });
 
     std::thread::spawn(move || {
@@ -354,6 +447,16 @@ pub fn init(app: AppHandle) {
                 .lock()
                 .map(|temps| *temps)
                 .unwrap_or((None, None));
+            let hardware = app
+                .state::<StatsState>()
+                .hardware
+                .lock()
+                .map(|info| info.clone())
+                .unwrap_or_default();
+            let fps = app
+                .try_state::<crate::fps::FpsState>()
+                .map(|state| state.get())
+                .unwrap_or_default();
             let stats = SystemStats {
                 cpu,
                 gpu: gpu_value,
@@ -370,6 +473,14 @@ pub fn init(app: AppHandle) {
                 refresh_hz: refresh,
                 screen_width,
                 screen_height,
+                cpu_name: hardware.cpu_name,
+                gpu_name: hardware.gpu_name,
+                motherboard: hardware.motherboard,
+                ram_modules: hardware.ram_modules,
+                os_name: hardware.os_name,
+                fps: fps.fps,
+                fps_process: fps.process,
+                fps_error: fps.error,
                 checked_at: chrono::Local::now().timestamp_millis(),
             };
             if let Ok(mut latest) = app.state::<StatsState>().latest.lock() {

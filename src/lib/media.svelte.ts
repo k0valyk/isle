@@ -315,6 +315,60 @@ export async function mediaControl(
   }
 }
 
+export const volume = $state<{ level: number; muted: boolean; ready: boolean }>({
+  level: 0.6,
+  muted: false,
+  ready: false,
+});
+
+interface VolumeSnapshot {
+  level: number;
+  muted: boolean;
+}
+
+function applyVolume(snapshot: VolumeSnapshot | null): void {
+  if (!snapshot) return;
+  volume.level = Math.max(0, Math.min(1, snapshot.level));
+  volume.muted = snapshot.muted;
+  volume.ready = true;
+}
+
+export async function refreshVolume(): Promise<void> {
+  try {
+    applyVolume(await invoke<VolumeSnapshot>("system_volume"));
+  } catch {
+    /* the audio service is optional */
+  }
+}
+
+export async function setVolume(level: number): Promise<void> {
+  const next = Math.max(0, Math.min(1, level));
+  const wasMuted = volume.muted;
+  volume.level = next;
+  volume.muted = next === 0 ? volume.muted : false;
+  try {
+    const snapshot = await invoke<VolumeSnapshot>("set_system_volume", { level: next });
+    applyVolume(snapshot);
+    // Raising the slider on a muted output must actually unmute it, otherwise
+    // the level looks restored but nothing is audible.
+    if (wasMuted && next > 0) {
+      applyVolume(await invoke<VolumeSnapshot>("set_system_mute", { muted: false }));
+    }
+  } catch {
+    await refreshVolume();
+  }
+}
+
+export async function toggleMute(): Promise<void> {
+  const next = !volume.muted;
+  volume.muted = next;
+  try {
+    applyVolume(await invoke<VolumeSnapshot>("set_system_mute", { muted: next }));
+  } catch {
+    await refreshVolume();
+  }
+}
+
 export function formatTrackTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const total = Math.floor(seconds);

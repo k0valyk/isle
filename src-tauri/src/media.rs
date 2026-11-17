@@ -338,6 +338,16 @@ pub fn init(app: &AppHandle) {
     std::thread::spawn(move || run(handle, receiver));
 }
 
+pub fn send(app: &AppHandle, command: MediaCommand) {
+    if let Some(state) = app.try_state::<MediaHandle>() {
+        if let Ok(guard) = state.0.lock() {
+            if let Some(sender) = guard.as_ref() {
+                let _ = sender.send(command);
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub fn media_control(state: tauri::State<'_, MediaHandle>, action: String, seconds: Option<i64>) {
     let command = match action.as_str() {

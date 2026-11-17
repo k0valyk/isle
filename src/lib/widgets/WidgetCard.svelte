@@ -144,13 +144,15 @@
       month: "long",
     }),
   );
-  const weekday = $derived(
-    clock.now.toLocaleDateString(locale(), { weekday: "long" }).toLocaleUpperCase(),
-  );
+  const weekday = $derived.by(() => {
+    const label = clock.now.toLocaleDateString(locale(), { weekday: "long" });
+    return label.charAt(0).toLocaleUpperCase() + label.slice(1);
+  });
   const dayNumber = $derived(clock.now.getDate());
-  const monthLabel = $derived(
-    clock.now.toLocaleDateString(locale(), { month: "long" }).toLocaleUpperCase(),
-  );
+  const monthLabel = $derived.by(() => {
+    const label = clock.now.toLocaleDateString(locale(), { month: "long" });
+    return label.charAt(0).toLocaleUpperCase() + label.slice(1);
+  });
 
   const progress = $derived(
     media.current.duration > 0
@@ -387,12 +389,14 @@
       <div class="metric-widget">
         <div class="metric-head">
           <span class="metric-name">FPS</span>
-          <span class="big metric-big">—</span>
+          <span class="big metric-big">{stats?.fps != null ? Math.round(stats.fps) : "—"}</span>
         </div>
         <span class="sub">
-          {stats?.refreshHz ? `${t("widget.screen_hz", { hz: stats.refreshHz })}` : "—"}
+          {stats?.fpsProcess || (stats?.refreshHz ? `${t("widget.screen_hz", { hz: stats.refreshHz })}` : "—")}
         </span>
-        <span class="sub temp-hint">{t("widget.fps_hint")}</span>
+        <span class="sub temp-hint">
+          {stats?.fps != null ? t("stats.fps_live") : t("widget.fps_hint")}
+        </span>
       </div>
     {:else if widget.kind === "disk"}
       <div class="metric-widget">
@@ -507,16 +511,17 @@
   .card {
     height: 100%;
     min-height: 0;
-    border-radius: 12px;
+    border-radius: var(--radius-card, 14px);
     border: 1px solid var(--border);
-    background: linear-gradient(150deg, var(--surface), color-mix(in srgb, var(--surface) 40%, transparent));
+    background: var(--surface);
     overflow: hidden;
     position: relative;
-    transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+    transition: border-color 0.18s ease, background 0.18s ease;
   }
 
   .card:hover {
-    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+    border-color: var(--border-strong);
+    background: var(--surface-strong);
   }
 
   .card.editing {
@@ -566,9 +571,7 @@
 
   .edit-label {
     flex: 1;
-    font-size: 8.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-size: 10px;
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
@@ -597,11 +600,11 @@
   }
 
   .big {
-    font-size: 24px;
-    font-weight: 650;
+    font-size: 26px;
+    font-weight: 500;
     line-height: 1;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.5px;
+    letter-spacing: -0.4px;
   }
 
   .unit {
@@ -611,8 +614,8 @@
   }
 
   .sub {
-    font-size: 8.5px;
-    line-height: 1.25;
+    font-size: 10px;
+    line-height: 1.3;
     color: var(--muted);
   }
 
@@ -655,10 +658,9 @@
   .weekday {
     grid-column: 1;
     grid-row: 1;
-    font-size: 8.5px;
-    letter-spacing: 0.08em;
+    font-size: 10px;
     color: var(--accent);
-    font-weight: 650;
+    font-weight: 500;
   }
 
   .day {
@@ -886,14 +888,12 @@
   }
 
   .metric-name {
-    font-size: 8.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-size: 10px;
     color: var(--muted);
     white-space: nowrap;
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
   }
 
   .metric-bar {
@@ -911,8 +911,8 @@
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #22c55e));
-    transition: width 0.45s cubic-bezier(0.34, 1.2, 0.64, 1);
+    background: var(--accent);
+    transition: width 0.4s var(--motion-ease, cubic-bezier(0.34, 1.2, 0.64, 1));
   }
 
   .metric-value {

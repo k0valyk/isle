@@ -9,6 +9,7 @@
   import WeatherBadge from "./lib/components/WeatherBadge.svelte";
   import BatteryBadge from "./lib/components/BatteryBadge.svelte";
   import MiniSpectrum from "./lib/components/MiniSpectrum.svelte";
+  import SceneLayer from "./lib/components/SceneLayer.svelte";
   import Home from "./lib/modules/home/Home.svelte";
   import Player from "./lib/modules/player/Player.svelte";
   import Clipboard from "./lib/modules/clipboard/Clipboard.svelte";
@@ -24,7 +25,7 @@
   import Agents from "./lib/modules/agents/Agents.svelte";
   import Phone from "./lib/modules/phone/Phone.svelte";
   import { MODULES } from "./lib/modules/registry";
-  import { motionDuration, store, t } from "./lib/store.svelte";
+  import { motionDuration, store, t, updateSettings } from "./lib/store.svelte";
   import { gsap } from "gsap";
   import { ensureWeather } from "./lib/weather.svelte";
   import { initMedia, audio, currentLyricText, media } from "./lib/media.svelte";
@@ -45,7 +46,7 @@
   const EXPANDED_WIDTH = 560;
   const EXPANDED_HEIGHT = 300;
   const HOME_HEIGHT = 380;
-  const PLAYER_HEIGHT = 360;
+  const PLAYER_HEIGHT = 404;
 
   let expanded = $state(false);
   let activeTab = $state("home");
@@ -81,6 +82,7 @@
   let musicSuppressedKey = "";
   let lastTrackKey = "";
   let collapsedArtBroken = $state(false);
+  let contentDir = $state(1);
   $effect(() => {
     void media.current.artwork;
     collapsedArtBroken = false;
@@ -97,9 +99,12 @@
             ? 380
             : activeTab === "text"
               ? 340
-              : EXPANDED_HEIGHT,
+              : activeTab === "stats"
+                ? 392
+                : EXPANDED_HEIGHT,
   );
   const dock = $derived(dockOverride ?? store.settings.island_dock ?? "top");
+  const pinned = $derived(store.settings.island_pinned);
   const liveAccent = $derived(media.accent ?? store.settings.accent_color);
   const ambient = $derived(
     ["aurora", "forest", "sunset", "rose"].includes(store.settings.theme),
@@ -275,6 +280,7 @@
   function collapse(): void {
     if (!expanded) return;
     clearTimers();
+    if (pinned) updateSettings({ island_pinned: false });
     if (activeTab === "player" && media.current.active) {
       musicSuppressedKey = `${media.current.title}|${media.current.artist}`;
     }
@@ -295,7 +301,17 @@
       applyTargetRegion("expanded");
       playSheen();
     } else {
+      if (pinned) updateSettings({ island_pinned: false });
       queueRegion("collapsed", motionDuration() + 20);
+    }
+  }
+
+  function togglePin(): void {
+    const next = !pinned;
+    updateSettings({ island_pinned: next });
+    if (next) {
+      clearTimers();
+      expand();
     }
   }
 
@@ -323,7 +339,7 @@
       clearTimers();
       return;
     }
-    if (store.settings.behavior === "always") return;
+    if (store.settings.behavior === "always" || pinned) return;
     if (closeTimer) clearTimeout(closeTimer);
     closeTimer = setTimeout(collapse, Math.max(0, store.settings.close_delay_ms));
   }
@@ -339,12 +355,18 @@
     }
   }
 
-  function onIslandDoubleClick(): void {
+  function onIslandDoubleClick(event: MouseEvent): void {
     if (suppressClick) {
       suppressClick = false;
       return;
     }
-    if (!expanded && store.settings.behavior === "double") expand();
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, input, textarea, select, a, [data-no-drag]")) return;
+    // Two taps keep the island open: pin it and expand if it was collapsed.
+    clearTimers();
+    if (!store.settings.island_pinned) updateSettings({ island_pinned: true });
+    expand();
+    flashAttention();
   }
 
   function onPointerDown(event: PointerEvent): void {
@@ -353,6 +375,8 @@
     const target = event.target as HTMLElement | null;
     const interactive = target?.closest("button, input, textarea, select, a, [data-no-drag]");
     if (interactive && !event.ctrlKey) return;
+    // A pinned island stays exactly where the user put it.
+    if (pinned) return;
     if (event.ctrlKey) event.preventDefault();
     clearTimers();
     suppressClick = false;
@@ -444,6 +468,7 @@
   }
 
   function onIslandKeydown(event: KeyboardEvent): void {
+    if (pinned) return;
     if (!event.altKey || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
       return;
     }
@@ -455,6 +480,8 @@
   }
 
   function go(id: string): void {
+    const order = ["home", ...tabs.map((module) => module.id)];
+    contentDir = order.indexOf(id) >= order.indexOf(activeTab) ? 1 : -1;
     activeTab = id;
   }
 
@@ -497,7 +524,7 @@
     void initAgents();
     void setup();
     applyTargetRegion("collapsed");
-    if (store.settings.behavior === "always") {
+    if (store.settings.behavior === "always" || store.settings.island_pinned) {
       setTimeout(() => expand(), 260);
     }
     window.addEventListener("keydown", onKeydown);
@@ -666,6 +693,29 @@
     }
   });
 
+  let wasPinned = false;
+  $effect(() => {
+    const isPinned = store.settings.island_pinned;
+    const previous = wasPinned;
+    wasPinned = isPinned;
+    if (!store.loaded) return;
+    if (isPinned) {
+      // Toggling the pin in Settings should open the island right away.
+      if (!expanded && !dragging) {
+        clearTimers();
+        expand();
+      }
+      return;
+    }
+    // Just unpinned: collapse unless the pointer is still over the island
+    // (for example when the pin button itself was clicked).
+    if (!previous || !expanded || store.settings.behavior === "always") return;
+    const timer = setTimeout(() => {
+      if (!islandEl?.matches(":hover")) collapse();
+    }, Math.max(250, store.settings.close_delay_ms));
+    return () => clearTimeout(timer);
+  });
+
   $effect(() => {
     const nextDock = store.settings.island_dock;
     if (dockOverride && nextDock === dockOverride) {
@@ -732,6 +782,7 @@
     class:attention
     class:dragging
     class:ambient
+    class:pinned
     bind:this={islandEl}
     style:--island-width={`${expanded ? EXPANDED_WIDTH : banner ? 380 : collapsedWidth}px`}
     style:--island-height={`${expanded ? expandedHeight : banner ? 64 : 34}px`}
@@ -744,6 +795,11 @@
     aria-label={t("app.name")}
   >
     <span class="sheen" bind:this={sheenEl} aria-hidden="true"></span>
+    <SceneLayer
+      scene={store.settings.island_scene}
+      gifUrl={store.settings.island_gif_url}
+      expanded={expanded}
+    />
     {#if ambient}
       <div class="ambient-layer" aria-hidden="true">
         {#each Array.from({ length: 10 }, (_, index) => index) as index (index)}
@@ -754,11 +810,6 @@
             style:animation-duration={`${6 + (index % 4) * 1.8}s`}
           ></span>
         {/each}
-      </div>
-    {/if}
-    {#if media.current.active}
-      <div class="liquid" class:live={audio.level > 0.015} aria-hidden="true">
-        <span></span><span></span><span></span>
       </div>
     {/if}
     {#if ripple}
@@ -773,9 +824,6 @@
     {/if}
     {#if expanded}
       <div class="chrome">
-        <span class="drag-grip" title={t("settings.drag_hint")} aria-hidden="true">
-          <Icon name="grip" size={13} />
-        </span>
         <nav class="tabs" aria-label={t("home.quick_actions")}>
           <button
             class="tab"
@@ -807,6 +855,19 @@
 
         <div class="chrome-actions">
           <button
+            class="tab action pin"
+            class:active={pinned}
+            onclick={(event) => {
+              event.stopPropagation();
+              togglePin();
+            }}
+            title={pinned ? t("island.unpin") : t("island.pin")}
+            aria-label={pinned ? t("island.unpin") : t("island.pin")}
+            aria-pressed={pinned}
+          >
+            <Icon name="pin" size={15} />
+          </button>
+          <button
             class="tab action"
             onclick={(event) => {
               event.stopPropagation();
@@ -832,7 +893,7 @@
       </div>
 
       {#key activeTab}
-        <div class="body" data-no-drag>
+        <div class="body" data-no-drag style:--dir={contentDir}>
           {#if activeTab === "home"}
           <Home go={go} />
         {:else if activeTab === "player"}
@@ -951,9 +1012,6 @@
       </div>
     {:else}
       <div class="collapsed">
-        <span class="drag-grip collapsed-grip" title={t("settings.drag_hint")} aria-hidden="true">
-          <Icon name="grip" size={12} />
-        </span>
         {#if timerVisible()}
           <span class="collapsed-timer">
             <Icon name="timer" size={13} />
@@ -969,6 +1027,7 @@
             <Icon name="gauge" size={11} />
             <span>
               CPU {Math.round(system.data.cpu)} · GPU {system.data.gpu === null ? "—" : Math.round(system.data.gpu)} · RAM {Math.round(system.data.ram)}
+              {#if system.data.fps != null}· {Math.round(system.data.fps)} FPS{/if}
             </span>
           </span>
         {:else if media.current.active && media.current.status === "playing"}
@@ -1037,8 +1096,11 @@
     pointer-events: auto;
     width: var(--island-width);
     height: var(--island-height);
-    background: var(--bg);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--fg) 4%, var(--bg)), var(--bg) 42%),
+      var(--bg);
     color: var(--fg);
+    border: 1px solid var(--border);
     border-radius: var(--island-radius);
     overflow: hidden;
     display: flex;
@@ -1046,12 +1108,14 @@
     position: relative;
     transition: width var(--motion-duration, 320ms) var(--motion-ease, cubic-bezier(0.34, 1.2, 0.64, 1)),
       height var(--motion-duration, 320ms) var(--motion-ease, cubic-bezier(0.34, 1.2, 0.64, 1)),
-      border-radius var(--motion-fast, 180ms) ease;
+      border-radius var(--motion-fast, 180ms) ease,
+      box-shadow var(--motion-fast, 180ms) ease;
     will-change: width, height;
     user-select: none;
     isolation: isolate;
   }
 
+  /* The signature: one hairline of light along the top edge, like a matte bezel. */
   .island::before {
     content: "";
     position: absolute;
@@ -1059,9 +1123,9 @@
     border-radius: inherit;
     pointer-events: none;
     z-index: 2;
-    box-shadow: inset 0 0 26px color-mix(in srgb, var(--live-accent) 55%, transparent);
-    opacity: calc(0.1 + var(--audio-level, 0) * 0.75 + var(--near, 0) * 0.16);
-    transition: opacity 0.16s linear;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    opacity: calc(0.55 + var(--audio-level, 0) * 0.45 + var(--near, 0) * 0.2);
+    transition: opacity 0.2s linear;
   }
 
   .island.dragging {
@@ -1095,6 +1159,23 @@
       inset 0 0 22px color-mix(in srgb, var(--accent) 28%, transparent);
   }
 
+  .island.pinned {
+    box-shadow:
+      0 12px 38px rgba(0, 0, 0, 0.38),
+      0 0 0 1px color-mix(in srgb, var(--live-accent) 34%, transparent);
+  }
+
+  .island.pinned::after {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--live-accent) 38%, transparent),
+      inset 0 0 18px color-mix(in srgb, var(--live-accent) 12%, transparent);
+  }
+
+  .tab.pin.active :global(svg) {
+    transform: rotate(-18deg);
+    color: var(--live-accent);
+  }
+
   .island.attention {
     animation: attention 1.5s ease;
   }
@@ -1116,10 +1197,10 @@
 
   @keyframes attention {
     0%, 100% {
-      filter: none;
+      box-shadow: none;
     }
     25%, 60% {
-      filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 65%, transparent));
+      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
     }
   }
 
@@ -1139,7 +1220,7 @@
     overflow: hidden;
     pointer-events: none;
     z-index: 0;
-    opacity: 0.45;
+    opacity: 0.22;
   }
 
   .ambient-layer span {
@@ -1187,52 +1268,6 @@
     }
   }
 
-  .liquid {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.25;
-    transition: opacity 0.2s ease;
-    filter: blur(10px);
-  }
-
-  .liquid.live {
-    opacity: 0.65;
-  }
-
-  .liquid span {
-    position: absolute;
-    width: 46%;
-    height: 90%;
-    border-radius: 50%;
-    background: radial-gradient(circle, var(--live-accent), transparent 70%);
-    opacity: calc(0.15 + var(--audio-level, 0) * 0.55);
-    animation: liquid-drift 9s ease-in-out infinite alternate;
-  }
-
-  .liquid span:nth-child(1) {
-    left: -10%;
-    top: 10%;
-  }
-
-  .liquid span:nth-child(2) {
-    right: -8%;
-    top: -20%;
-    animation-delay: -3s;
-  }
-
-  .liquid span:nth-child(3) {
-    left: 28%;
-    bottom: -40%;
-    animation-delay: -6s;
-  }
-
-  @keyframes liquid-drift {
-    from { transform: translate3d(-6%, 0, 0) scale(0.9); }
-    to { transform: translate3d(9%, 6%, 0) scale(1.15); }
-  }
-
   .ripple {
     position: absolute;
     width: 6px;
@@ -1274,37 +1309,6 @@
 
   .collapsed:active {
     cursor: grabbing;
-  }
-
-  .drag-grip {
-    width: 14px;
-    height: 22px;
-    display: grid;
-    place-items: center;
-    color: var(--muted);
-    opacity: 0.35;
-    flex: none;
-    cursor: grab;
-    transition: opacity 0.15s ease, color 0.15s ease;
-  }
-
-  .chrome:hover .drag-grip,
-  .collapsed:hover .drag-grip {
-    opacity: 0.75;
-    color: var(--fg);
-  }
-
-  .drag-grip:active {
-    cursor: grabbing;
-  }
-
-  .collapsed-grip {
-    position: absolute;
-    left: 5px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 11px;
-    height: 18px;
   }
 
   .collapsed-clock {
@@ -1579,7 +1583,10 @@
 
   .tab.active :global(svg) {
     color: var(--accent);
-    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent));
+  }
+
+  .tab.active {
+    background: var(--surface-strong);
   }
 
   .tab:hover {
@@ -1601,7 +1608,7 @@
     min-height: 0;
     padding: 10px;
     overflow: hidden;
-    animation: fade-in var(--motion-fast, 180ms) var(--motion-ease, ease);
+    animation: body-slide var(--motion-duration, 320ms) var(--motion-ease, ease);
     z-index: 1;
     transform: translateX(var(--lean-x, 0));
     transition: transform 0.18s ease-out;
@@ -1615,15 +1622,28 @@
     animation: body-pop var(--motion-fast, 180ms) cubic-bezier(0.22, 1.5, 0.36, 1);
   }
 
+  @keyframes body-slide {
+    from {
+      opacity: 0;
+      transform: translateX(calc(var(--dir, 1) * 10px)) scale(0.992);
+      filter: blur(1.5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
   @keyframes body-rise {
     from {
       opacity: 0;
-      transform: translateY(9px) scale(0.988);
+      transform: translateY(9px) translateX(calc(var(--dir, 1) * 7px)) scale(0.988);
       filter: blur(2px);
     }
     to {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      transform: translateY(0) translateX(0) scale(1);
       filter: blur(0);
     }
   }
@@ -1631,11 +1651,11 @@
   @keyframes body-pop {
     from {
       opacity: 0;
-      transform: scale(0.94);
+      transform: translateX(calc(var(--dir, 1) * 5px)) scale(0.94);
     }
     to {
       opacity: 1;
-      transform: scale(1);
+      transform: translateX(0) scale(1);
     }
   }
 
@@ -1645,17 +1665,6 @@
     height: 100%;
     color: var(--muted);
     font-size: 11px;
-  }
-
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-      transform: translateY(3px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   :global(:root[data-reduced-motion="true"]) .island {
@@ -1675,7 +1684,6 @@
   }
 
   :global(:root[data-reduced-motion="true"]) .ambient-layer,
-  :global(:root[data-reduced-motion="true"]) .liquid,
   :global(:root[data-reduced-motion="true"]) .ripple {
     display: none;
   }

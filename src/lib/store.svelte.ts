@@ -10,6 +10,9 @@ export interface Settings {
   tray_enabled: boolean;
   behavior: string;
   island_dock: string;
+  island_pinned: boolean;
+  island_scene: string;
+  island_gif_url: string;
   auto_music_panel: boolean;
   karaoke_line: boolean;
   clipboard_watch: boolean;
@@ -22,6 +25,9 @@ export interface Settings {
   hotkey_collapse: string;
   hotkey_settings: string;
   hotkey_screenshot: string;
+  hotkey_play_pause: string;
+  hotkey_next: string;
+  hotkey_prev: string;
   autohide_fullscreen: boolean;
   show_seconds: boolean;
   show_battery: boolean;
@@ -80,6 +86,9 @@ export const DEFAULT_SETTINGS: Settings = {
   tray_enabled: true,
   behavior: "hover",
   island_dock: "top",
+  island_pinned: false,
+  island_scene: "none",
+  island_gif_url: "",
   auto_music_panel: true,
   karaoke_line: true,
   clipboard_watch: true,
@@ -92,6 +101,9 @@ export const DEFAULT_SETTINGS: Settings = {
   hotkey_collapse: "",
   hotkey_settings: "",
   hotkey_screenshot: "",
+  hotkey_play_pause: "",
+  hotkey_next: "",
+  hotkey_prev: "",
   autohide_fullscreen: false,
   show_seconds: false,
   show_battery: false,
@@ -257,34 +269,40 @@ async function persist(): Promise<void> {
 
 const THEMES: Record<string, Record<string, string>> = {
   classic: {
-    "--bg": "#000000",
-    "--bg-elevated": "#0c0c0e",
-    "--fg": "#ffffff",
-    "--muted": "#a1a1aa",
-    "--surface": "rgba(255,255,255,0.06)",
-    "--surface-strong": "rgba(255,255,255,0.1)",
-    "--border": "rgba(255,255,255,0.08)",
-    "--input": "rgba(255,255,255,0.07)",
+    "--bg": "#0b0b0d",
+    "--bg-elevated": "#131316",
+    "--fg": "#f2f1ee",
+    "--muted": "#9d9a94",
+    "--surface": "rgba(255,255,255,0.045)",
+    "--surface-strong": "rgba(255,255,255,0.08)",
+    "--surface-raised": "rgba(255,255,255,0.11)",
+    "--border": "rgba(255,255,255,0.075)",
+    "--border-strong": "rgba(255,255,255,0.14)",
+    "--input": "rgba(255,255,255,0.055)",
   },
   night: {
-    "--bg": "#0b1220",
-    "--bg-elevated": "#111a2c",
-    "--fg": "#f1f5f9",
-    "--muted": "#94a3b8",
-    "--surface": "rgba(148,163,184,0.12)",
-    "--surface-strong": "rgba(148,163,184,0.2)",
-    "--border": "rgba(148,163,184,0.16)",
-    "--input": "rgba(148,163,184,0.12)",
+    "--bg": "#0a0d12",
+    "--bg-elevated": "#11151c",
+    "--fg": "#eef0f2",
+    "--muted": "#959aa3",
+    "--surface": "rgba(233,238,245,0.045)",
+    "--surface-strong": "rgba(233,238,245,0.08)",
+    "--surface-raised": "rgba(233,238,245,0.11)",
+    "--border": "rgba(233,238,245,0.08)",
+    "--border-strong": "rgba(233,238,245,0.15)",
+    "--input": "rgba(233,238,245,0.055)",
   },
   light: {
-    "--bg": "#f7f7fa",
-    "--bg-elevated": "#ffffff",
-    "--fg": "#14161a",
-    "--muted": "#5f6774",
-    "--surface": "rgba(15,23,42,0.05)",
-    "--surface-strong": "rgba(15,23,42,0.09)",
-    "--border": "rgba(15,23,42,0.1)",
-    "--input": "rgba(15,23,42,0.06)",
+    "--bg": "#f4f2ee",
+    "--bg-elevated": "#fbfaf7",
+    "--fg": "#17161a",
+    "--muted": "#6d6a63",
+    "--surface": "rgba(23,22,26,0.04)",
+    "--surface-strong": "rgba(23,22,26,0.075)",
+    "--surface-raised": "rgba(23,22,26,0.1)",
+    "--border": "rgba(23,22,26,0.1)",
+    "--border-strong": "rgba(23,22,26,0.18)",
+    "--input": "rgba(23,22,26,0.05)",
   },
   aurora: {
     "--bg": "#061a1a",
@@ -293,7 +311,9 @@ const THEMES: Record<string, Record<string, string>> = {
     "--muted": "#7dd3c7",
     "--surface": "rgba(125,211,199,0.1)",
     "--surface-strong": "rgba(125,211,199,0.18)",
+    "--surface-raised": "rgba(125,211,199,0.24)",
     "--border": "rgba(125,211,199,0.16)",
+    "--border-strong": "rgba(125,211,199,0.26)",
     "--input": "rgba(125,211,199,0.12)",
   },
   sunset: {
@@ -303,7 +323,9 @@ const THEMES: Record<string, Record<string, string>> = {
     "--muted": "#f3a68f",
     "--surface": "rgba(243,166,143,0.1)",
     "--surface-strong": "rgba(243,166,143,0.18)",
+    "--surface-raised": "rgba(243,166,143,0.24)",
     "--border": "rgba(243,166,143,0.16)",
+    "--border-strong": "rgba(243,166,143,0.26)",
     "--input": "rgba(243,166,143,0.12)",
   },
   forest: {
@@ -313,7 +335,9 @@ const THEMES: Record<string, Record<string, string>> = {
     "--muted": "#93c5a3",
     "--surface": "rgba(147,197,163,0.1)",
     "--surface-strong": "rgba(147,197,163,0.18)",
+    "--surface-raised": "rgba(147,197,163,0.24)",
     "--border": "rgba(147,197,163,0.16)",
+    "--border-strong": "rgba(147,197,163,0.26)",
     "--input": "rgba(147,197,163,0.12)",
   },
   mono: {
@@ -323,7 +347,9 @@ const THEMES: Record<string, Record<string, string>> = {
     "--muted": "#a3a3a3",
     "--surface": "rgba(255,255,255,0.07)",
     "--surface-strong": "rgba(255,255,255,0.13)",
+    "--surface-raised": "rgba(255,255,255,0.17)",
     "--border": "rgba(255,255,255,0.12)",
+    "--border-strong": "rgba(255,255,255,0.2)",
     "--input": "rgba(255,255,255,0.09)",
   },
   rose: {
@@ -333,7 +359,9 @@ const THEMES: Record<string, Record<string, string>> = {
     "--muted": "#e6a3c2",
     "--surface": "rgba(230,163,194,0.1)",
     "--surface-strong": "rgba(230,163,194,0.18)",
+    "--surface-raised": "rgba(230,163,194,0.24)",
     "--border": "rgba(230,163,194,0.16)",
+    "--border-strong": "rgba(230,163,194,0.26)",
     "--input": "rgba(230,163,194,0.12)",
   },
 };
@@ -359,7 +387,17 @@ export function motionDuration(): number {
   return motionProfile().duration;
 }
 
+function isLightColor(hex: string): boolean {
+  const value = hex.replace("#", "");
+  if (value.length !== 6) return false;
+  const r = parseInt(value.slice(0, 2), 16) / 255;
+  const g = parseInt(value.slice(2, 4), 16) / 255;
+  const b = parseInt(value.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55;
+}
+
 function customTheme(bg: string, fg: string): Record<string, string> {
+  const light = isLightColor(bg);
   return {
     "--bg": bg,
     "--bg-elevated": `color-mix(in srgb, ${bg} 88%, ${fg} 12%)`,
@@ -367,7 +405,9 @@ function customTheme(bg: string, fg: string): Record<string, string> {
     "--muted": `color-mix(in srgb, ${fg} 62%, ${bg})`,
     "--surface": `color-mix(in srgb, ${fg} 8%, transparent)`,
     "--surface-strong": `color-mix(in srgb, ${fg} 15%, transparent)`,
+    "--surface-raised": `color-mix(in srgb, ${fg} 21%, transparent)`,
     "--border": `color-mix(in srgb, ${fg} 14%, transparent)`,
+    "--border-strong": `color-mix(in srgb, ${fg} 24%, transparent)`,
     "--input": `color-mix(in srgb, ${fg} 10%, transparent)`,
   };
 }
@@ -394,6 +434,17 @@ export function applyTheme(): void {
     root.style.setProperty(key, value);
   }
   root.style.setProperty("--accent", store.settings.accent_color);
+  root.style.setProperty("--focus-ring", `color-mix(in srgb, ${store.settings.accent_color} 70%, transparent)`);
+  // Custom themes bypass the light/dark blocks, so derive the inverse button
+  // tokens from the background luminance.
+  if (themeKey === "custom") {
+    const light = isLightColor(store.settings.custom_bg);
+    root.style.setProperty("--btn-primary-bg", light ? "#1b1a1e" : "#f2f1ee");
+    root.style.setProperty("--btn-primary-fg", light ? "#f7f6f2" : "#121214");
+  } else {
+    root.style.removeProperty("--btn-primary-bg");
+    root.style.removeProperty("--btn-primary-fg");
+  }
   root.style.setProperty("--radius", `${store.settings.radius}px`);
   const font =
     !store.settings.font || store.settings.font === "system"

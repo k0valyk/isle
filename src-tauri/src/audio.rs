@@ -9,6 +9,11 @@ use rustfft::{Fft, FftPlanner};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use wasapi::{DeviceEnumerator, Direction, SampleType, StreamMode};
+use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
+use windows::Win32::Media::Audio::{eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+};
 
 const FFT_SIZE: usize = 1024;
 const BANDS: usize = 12;
@@ -31,6 +36,77 @@ pub fn audio_spectrum(state: State<'_, AudioState>) -> Spectrum {
         .lock()
         .map(|spectrum| spectrum.clone())
         .unwrap_or_default()
+}
+
+#[derive(Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct VolumeState {
+    pub level: f32,
+    pub muted: bool,
+}
+
+fn with_endpoint_volume<T>(
+    action: impl FnOnce(&IAudioEndpointVolume) -> windows::core::Result<T>,
+) -> Result<T, String> {
+    unsafe {
+        let apartment = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let result = (|| {
+            let enumerator: IMMDeviceEnumerator =
+                CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+                    .map_err(|error| error.to_string())?;
+            let device = enumerator
+                .GetDefaultAudioEndpoint(eRender, eConsole)
+                .map_err(|error| error.to_string())?;
+            let volume: IAudioEndpointVolume = device
+                .Activate(CLSCTX_ALL, None)
+                .map_err(|error| error.to_string())?;
+            action(&volume).map_err(|error| error.to_string())
+        })();
+        if apartment.is_ok() {
+            CoUninitialize();
+        }
+        result
+    }
+}
+
+fn read_volume() -> Result<VolumeState, String> {
+    with_endpoint_volume(|volume| unsafe {
+        let level = volume.GetMasterVolumeLevelScalar()?;
+        let muted = volume.GetMute()?.as_bool();
+        Ok(VolumeState {
+            level: level.clamp(0.0, 1.0),
+            muted,
+        })
+    })
+}
+
+/// The player controls the system output volume. Media apps expose no
+/// per-session gain through SMTC, so the master endpoint is the only setting
+/// that changes what the user actually hears.
+#[tauri::command]
+pub fn system_volume() -> VolumeState {
+    read_volume().unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn set_system_volume(level: f32) -> Result<VolumeState, String> {
+    let level = level.clamp(0.0, 1.0);
+    with_endpoint_volume(|volume| unsafe {
+        volume.SetMasterVolumeLevelScalar(level, std::ptr::null())?;
+        if level > 0.0 && volume.GetMute()?.as_bool() {
+            volume.SetMute(false, std::ptr::null())?;
+        }
+        Ok(())
+    })?;
+    read_volume()
+}
+
+#[tauri::command]
+pub fn set_system_mute(muted: bool) -> Result<VolumeState, String> {
+    with_endpoint_volume(|volume| unsafe {
+        volume.SetMute(muted, std::ptr::null())
+    })?;
+    read_volume()
 }
 
 pub fn init(app: AppHandle) {

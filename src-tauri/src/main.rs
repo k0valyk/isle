@@ -11,6 +11,8 @@ mod capture;
 #[cfg(windows)]
 mod cursor;
 #[cfg(windows)]
+mod fps;
+#[cfg(windows)]
 mod media;
 #[cfg(windows)]
 mod network;
@@ -35,6 +37,9 @@ mod capture;
 #[path = "macos/cursor.rs"]
 mod cursor;
 #[cfg(not(windows))]
+#[path = "macos/fps.rs"]
+mod fps;
+#[cfg(not(windows))]
 #[path = "macos/media.rs"]
 mod media;
 #[cfg(not(windows))]
@@ -57,6 +62,7 @@ mod lyrics;
 mod phone;
 mod productivity;
 mod settings;
+mod usage;
 mod terminal;
 mod translate;
 mod weather;
@@ -114,6 +120,51 @@ fn show_settings(app: &AppHandle) {
 #[tauri::command]
 fn app_info() -> serde_json::Value {
     serde_json::json!({ "version": env!("CARGO_PKG_VERSION") })
+}
+
+#[cfg(windows)]
+#[tauri::command]
+fn restart_as_admin(app: AppHandle) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+
+    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+    let pid = std::process::id();
+    let script_path = std::env::temp_dir().join("isle-elevate.ps1");
+    let script = "param([int]$OldPid,[string]$Exe)\n\
+        Wait-Process -Id $OldPid -ErrorAction SilentlyContinue\n\
+        Start-Sleep -Milliseconds 700\n\
+        Start-Process -FilePath $Exe\n";
+    std::fs::write(&script_path, script).map_err(|error| error.to_string())?;
+    let command = format!(
+        "Start-Process -FilePath 'powershell' -Verb RunAs -ArgumentList \
+         '-NoProfile','-ExecutionPolicy','Bypass','-File','{}','-OldPid','{}','-Exe','{}'",
+        script_path.display(),
+        pid,
+        exe.display()
+    );
+    let status = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &command,
+        ])
+        .creation_flags(0x0800_0000)
+        .status()
+        .map_err(|error| error.to_string())?;
+    if !status.success() {
+        return Err("Administrator restart was cancelled".into());
+    }
+    app.exit(0);
+    Ok(())
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+fn restart_as_admin(_app: AppHandle) -> Result<(), String> {
+    Err("Administrator restart is only available on Windows".into())
 }
 
 #[tauri::command]
@@ -480,6 +531,11 @@ fn main() {
                             Some("expand") => expand_island(app),
                             Some("collapse") => collapse_island(app),
                             Some("settings") => show_settings(app),
+                            Some("play_pause") => {
+                                media::send(app, media::MediaCommand::TogglePlayPause)
+                            }
+                            Some("next") => media::send(app, media::MediaCommand::Next),
+                            Some("prev") => media::send(app, media::MediaCommand::Previous),
                             Some("screenshot") => {
                                 let handle = app.clone();
                                 tauri::async_runtime::spawn(async move {
@@ -557,6 +613,7 @@ fn main() {
             audio::init(app.handle().clone());
             cursor::init(app.handle().clone());
             stats::init(app.handle().clone());
+            fps::init(app.handle().clone());
             app.manage(agents::AgentsState::default());
             app.manage(downloads::DownloadState::default());
             app.manage(terminal::TerminalState::default());
@@ -576,6 +633,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             app_info,
+            restart_as_admin,
             open_settings,
             hotkeys::hotkeys_status,
             reset_island_position,
@@ -593,6 +651,9 @@ fn main() {
             artwork::fetch_cover,
             translate::translate_text,
             audio::audio_spectrum,
+            audio::system_volume,
+            audio::set_system_volume,
+            audio::set_system_mute,
             stats::system_stats,
             capture::capture_screenshot,
             capture::capture_monitors,
@@ -634,6 +695,7 @@ fn main() {
             agents::agents_clear,
             agents::agents_endpoint,
             agents::agents_status,
+            usage::agent_usage,
             agents::agents_test,
             agents::agents_install_opencode,
             agents::agents_open_opencode,

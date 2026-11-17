@@ -62,6 +62,9 @@ fn candidates(settings: &Settings) -> Vec<(&'static str, String)> {
         ("collapse", settings.hotkey_collapse.trim().to_string()),
         ("settings", settings.hotkey_settings.trim().to_string()),
         ("screenshot", settings.hotkey_screenshot.trim().to_string()),
+        ("play_pause", settings.hotkey_play_pause.trim().to_string()),
+        ("next", settings.hotkey_next.trim().to_string()),
+        ("prev", settings.hotkey_prev.trim().to_string()),
     ]
 }
 
