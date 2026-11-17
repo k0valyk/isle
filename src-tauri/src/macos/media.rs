@@ -65,3 +65,15 @@ pub fn init(app: &AppHandle) {
         }),
     });
 }
+
+/// Hotkeys call this on every platform; the macOS bridge is not wired up yet,
+/// so the command is accepted and ignored.
+pub fn send(app: &AppHandle, command: MediaCommand) {
+    if let Some(state) = app.try_state::<MediaHandle>() {
+        if let Ok(guard) = state.0.lock() {
+            if let Some(sender) = guard.as_ref() {
+                let _ = sender.send(command);
+            }
+        }
+    }
+}
