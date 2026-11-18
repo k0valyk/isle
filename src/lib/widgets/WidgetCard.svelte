@@ -36,6 +36,9 @@
   const meta = $derived(WIDGET_META[widget.kind] ?? WIDGET_META.clock);
   const stats = $derived(system.data);
   const fpsNow = $derived(effectiveFps(stats));
+  const gpuMetric = $derived(store.settings.fps_metric === "gpu");
+  const loadValue = $derived(gpuMetric ? stats?.gpu : stats?.cpu);
+  const loadTemp = $derived(gpuMetric ? stats?.gpuTemp : stats?.cpuTemp);
   const current = $derived(weather.data?.current ?? null);
   const city = $derived(store.settings.weather_city || t("weather.city"));
   const lyricIndex = $derived(activeLyricIndex(media.position));
@@ -386,13 +389,15 @@
         </div>
         <div class="perf-meta">
           <span class="perf-cell">
-            <span class="perf-label">CPU</span>
-            <span class="perf-value">{stats ? `${Math.round(stats.cpu)}%` : "—"}</span>
+            <span class="perf-label">{gpuMetric ? "GPU" : "CPU"}</span>
+            <span class="perf-value">
+              {loadValue === null || loadValue === undefined ? "—" : `${Math.round(loadValue)}%`}
+            </span>
           </span>
-          {#if stats?.cpuTemp != null}
+          {#if loadTemp != null}
             <span class="perf-cell">
               <span class="perf-label">TEMP</span>
-              <span class="perf-value">{Math.round(stats.cpuTemp)}°</span>
+              <span class="perf-value">{Math.round(loadTemp)}°</span>
             </span>
           {/if}
         </div>
@@ -758,20 +763,18 @@
     min-height: 2px;
     border-radius: 1px;
     background: var(--accent);
-    animation: cover-bounce 0.9s ease-in-out infinite;
+  }
+
+  .cover-live span:nth-child(1) {
+    height: 3px;
   }
 
   .cover-live span:nth-child(2) {
-    animation-delay: 0.18s;
+    height: 6px;
   }
 
   .cover-live span:nth-child(3) {
-    animation-delay: 0.36s;
-  }
-
-  @keyframes cover-bounce {
-    0%, 100% { height: 2px; }
-    50% { height: 8px; }
+    height: 4px;
   }
 
   .media-meta {

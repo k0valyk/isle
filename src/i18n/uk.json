@@ -571,5 +571,12 @@
   "settings.update_install": "Оновити й перезапустити",
   "settings.update_downloading": "Завантаження… {percent}%",
   "settings.update_ready": "Оновлення встановлено, перезапускаю…",
-  "settings.update_error": "Не вдалося оновити"
+  "settings.update_error": "Не вдалося оновити",
+  "settings.char_robot": "Робот",
+  "settings.char_ghost": "Привид",
+  "settings.char_bars": "Еквалайзер",
+  "settings.char_spark": "Іскра",
+  "widget.drag_hint": "Перетягніть за ручку, щоб змінити порядок. Розмір оберіть у списку праворуч.",
+  "settings.fps_metric": "Навантаження біля FPS",
+  "settings.fps_metric_hint": "Яку метрику показувати поруч із FPS — процесора чи відеокарти."
 }

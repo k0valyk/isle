@@ -106,6 +106,25 @@
         <span class="orb-ring"></span>
         <span class="orb-moon"></span>
       </span>
+    {:else if variant === "robot"}
+      <span class="robot">
+        <span class="antenna"></span>
+        <span class="robot-eye"></span>
+        <span class="robot-eye"></span>
+      </span>
+    {:else if variant === "ghost"}
+      <span class="ghost">
+        <span class="ghost-eye"></span>
+        <span class="ghost-eye"></span>
+      </span>
+    {:else if variant === "bars"}
+      <span class="char-bars">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+    {:else if variant === "spark"}
+      <span class="spark"></span>
     {:else}
       <span class="eye">
         <span class="pupil"></span>
@@ -358,6 +377,162 @@
     }
   }
 
+  .robot {
+    position: relative;
+    width: 18px;
+    height: 16px;
+    border-radius: 5px;
+    background: #151519;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+      0 0 8px color-mix(in srgb, var(--accent) 38%, transparent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  .antenna {
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    width: 2px;
+    height: 5px;
+    margin-left: -1px;
+    background: #f4f4f5;
+  }
+
+  .antenna::after {
+    content: "";
+    position: absolute;
+    top: -3px;
+    left: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    animation: robot-led 2.4s ease-in-out infinite;
+  }
+
+  .robot-eye {
+    width: 3.4px;
+    height: 4.4px;
+    border-radius: 50%;
+    background: #f4f4f5;
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+
+  @keyframes robot-led {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .ghost {
+    position: relative;
+    width: 18px;
+    height: 17px;
+    border-radius: 9px 9px 5px 5px;
+    background: linear-gradient(180deg, #ffffff, #d4d4dc);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 28%, transparent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    animation: ghost-float 3.2s ease-in-out infinite;
+  }
+
+  .ghost::after {
+    content: "";
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    bottom: -2px;
+    height: 4px;
+    background: radial-gradient(circle at 3px 0, #d4d4dc 2px, transparent 2.6px) repeat-x;
+    background-size: 6px 4px;
+  }
+
+  .ghost-eye {
+    width: 2.6px;
+    height: 3.6px;
+    border-radius: 50%;
+    background: #101012;
+  }
+
+  @keyframes ghost-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-1.4px);
+    }
+  }
+
+  .char-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2.5px;
+    height: 18px;
+  }
+
+  .char-bars span {
+    width: 3px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--accent);
+    transform-origin: bottom center;
+    animation: bar-bounce 1.1s ease-in-out infinite;
+  }
+
+  .char-bars span:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+
+  .char-bars span:nth-child(3) {
+    animation-delay: 0.32s;
+  }
+
+  @keyframes bar-bounce {
+    0%,
+    100% {
+      transform: scaleY(0.45);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  .spark {
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    clip-path: polygon(
+      50% 0%,
+      61% 39%,
+      100% 50%,
+      61% 61%,
+      50% 100%,
+      39% 61%,
+      0% 50%,
+      39% 39%
+    );
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 70%, transparent));
+    animation: spark-turn 9s linear infinite;
+  }
+
+  @keyframes spark-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   @keyframes bob {
     0%,
     100% {
@@ -375,6 +550,10 @@
   :global(:root[data-reduced-motion="true"]) .orb-core,
   :global(:root[data-reduced-motion="true"]) .orb-ring,
   :global(:root[data-reduced-motion="true"]) .orb-moon,
+  :global(:root[data-reduced-motion="true"]) .antenna::after,
+  :global(:root[data-reduced-motion="true"]) .ghost,
+  :global(:root[data-reduced-motion="true"]) .char-bars span,
+  :global(:root[data-reduced-motion="true"]) .spark,
   :global(:root[data-reduced-motion="true"]) .character.playing {
     animation: none;
   }

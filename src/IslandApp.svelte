@@ -831,13 +831,6 @@
           {/each}
         </nav>
 
-        <span class="chrome-perf" aria-hidden="true">
-          <span class="chrome-fps">{fpsNow === null ? "—" : Math.round(fpsNow)} FPS</span>
-          {#if system.data?.cpuTemp != null}
-            <span class="chrome-temp">{Math.round(system.data.cpuTemp)}°</span>
-          {/if}
-        </span>
-
         <div class="chrome-actions">
           <button
             class="tab action pin"
@@ -1026,22 +1019,12 @@
               <span class="collapsed-lyric" title={`${media.current.title} — ${lyricLine}`}>{lyricLine}</span>
             {/key}
           {:else}
-            <div class="collapsed-clock">
-              <Clock />
-              {#if store.settings.character !== "hud"}
-                <span class="collapsed-fps">{fpsNow === null ? "—" : `${Math.round(fpsNow)} fps`}</span>
-              {/if}
-            </div>
+            <div class="collapsed-clock"><Clock /></div>
           {/if}
           <MiniSpectrum />
         {:else}
           <Character />
-          <div class="collapsed-clock">
-            <Clock />
-            {#if store.settings.character !== "hud"}
-              <span class="collapsed-fps">{fpsNow === null ? "—" : `${Math.round(fpsNow)} fps`}</span>
-            {/if}
-          </div>
+          <div class="collapsed-clock"><Clock /></div>
           <WeatherBadge />
         {/if}
         {#if agentState === "working" || agentState === "attention" || agentState === "error"}
@@ -1283,22 +1266,7 @@
   }
 
   .collapsed-clock {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-    line-height: 1;
     letter-spacing: -0.2px;
-  }
-
-  .collapsed-fps {
-    font-size: 7px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-    opacity: 0.85;
   }
 
   .collapsed-art {
@@ -1542,31 +1510,6 @@
     align-items: center;
     gap: 1px;
     flex: none;
-  }
-
-  .chrome-perf {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    flex: none;
-    padding: 3px 7px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--surface) 72%, transparent);
-    font-size: 8.5px;
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.01em;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-
-  .chrome-fps {
-    color: color-mix(in srgb, var(--live-accent) 78%, var(--fg));
-  }
-
-  .chrome-temp {
-    color: var(--muted);
   }
 
   .tab {

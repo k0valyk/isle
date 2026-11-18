@@ -20,7 +20,7 @@
   import { checkForUpdates, installUpdate, updates } from "./lib/updates.svelte";
   import {
     DEFAULT_WIDGETS,
-    nextSize,
+    SIZE_CYCLE,
     WIDGET_META,
     widgetId,
     type WidgetConfig,
@@ -58,6 +58,10 @@
     { id: "hud", label: "settings.char_hud" },
     { id: "cat", label: "settings.char_cat" },
     { id: "orb", label: "settings.char_orb" },
+    { id: "robot", label: "settings.char_robot" },
+    { id: "ghost", label: "settings.char_ghost" },
+    { id: "bars", label: "settings.char_bars" },
+    { id: "spark", label: "settings.char_spark" },
   ];
 
   const SCENES = [
@@ -117,13 +121,56 @@
     updateSettings({ widgets: store.settings.widgets.filter((widget) => widget.id !== id) });
   }
 
-  function resizeWidget(id: string): void {
+  function setWidgetSize(id: string, size: string): void {
     updateSettings({
       widgets: store.settings.widgets.map((widget) =>
-        widget.id === id ? { ...widget, size: nextSize(widget.size) } : widget,
+        widget.id === id ? { ...widget, size: size as WidgetConfig["size"] } : widget,
       ),
     });
   }
+
+  let dragIndex = $state<number | null>(null);
+  let dropIndex = $state<number | null>(null);
+
+  function dragStart(event: DragEvent, index: number): void {
+    dragIndex = index;
+    dropIndex = index;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(index));
+    }
+  }
+
+  function dragOver(event: DragEvent, index: number): void {
+    if (dragIndex === null) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    if (dropIndex !== index) dropIndex = index;
+  }
+
+  function dragLeave(index: number): void {
+    if (dropIndex === index) dropIndex = null;
+  }
+
+  function dropWidget(event: DragEvent, index: number): void {
+    event.preventDefault();
+    const from = dragIndex;
+    dragIndex = null;
+    dropIndex = null;
+    if (from === null || from === index) return;
+    const next = [...store.settings.widgets];
+    const [moved] = next.splice(from, 1);
+    if (!moved) return;
+    next.splice(index, 0, moved);
+    updateSettings({ widgets: next });
+  }
+
+  function dragEnd(): void {
+    dragIndex = null;
+    dropIndex = null;
+  }
+
+  const hasFpsWidget = $derived(store.settings.widgets.some((widget) => widget.kind === "fps"));
 
   function resetWidgets(): void {
     updateSettings({ widgets: DEFAULT_WIDGETS.map((widget) => ({ ...widget })) });
@@ -666,22 +713,38 @@
             />
           </label>
 
-          <div class="widget-list">
-            {#each store.settings.widgets as widget (widget.id)}
-              <div class="widget-row">
+          <div class="widget-list" role="list">
+            {#each store.settings.widgets as widget, index (widget.id)}
+              <div
+                class="widget-row"
+                role="listitem"
+                class:dragging={dragIndex === index}
+                class:drop-target={dragIndex !== null && dropIndex === index && dragIndex !== index}
+                draggable="true"
+                ondragstart={(event) => dragStart(event, index)}
+                ondragover={(event) => dragOver(event, index)}
+                ondragleave={() => dragLeave(index)}
+                ondrop={(event) => dropWidget(event, index)}
+                ondragend={dragEnd}
+              >
+                <span class="widget-grip" title={t("widget.drag_hint")}>
+                  <Icon name="grip" size={13} />
+                </span>
                 <span class="widget-icon">
                   <Icon name={WIDGET_META[widget.kind].icon} size={14} />
                 </span>
                 <span class="widget-name">{t(WIDGET_META[widget.kind].label)}</span>
-                <span class="widget-size">{t(`widget.size_${widget.size}`)}</span>
-                <button
-                  class="btn icon-only"
-                  onclick={() => resizeWidget(widget.id)}
+                <select
+                  class="widget-size-select"
+                  value={widget.size}
                   title={t("widget.resize")}
                   aria-label={t("widget.resize")}
+                  onchange={(event) => setWidgetSize(widget.id, event.currentTarget.value)}
                 >
-                  <Icon name="layout" size={12} />
-                </button>
+                  {#each SIZE_CYCLE as size (size)}
+                    <option value={size}>{t(`widget.size_${size}`)}</option>
+                  {/each}
+                </select>
                 <button
                   class="btn icon-only"
                   onclick={() => removeWidget(widget.id)}
@@ -696,6 +759,24 @@
               <p class="text">{t("widget.empty")}</p>
             {/if}
           </div>
+          <p class="hint">{t("widget.drag_hint")}</p>
+
+          {#if hasFpsWidget}
+            <label class="row">
+              <span class="row-label">{t("settings.fps_metric")}</span>
+              <select
+                value={store.settings.fps_metric}
+                onchange={(event) =>
+                  updateSettings({
+                    fps_metric: event.currentTarget.value === "gpu" ? "gpu" : "cpu",
+                  })}
+              >
+                <option value="cpu">CPU</option>
+                <option value="gpu">GPU</option>
+              </select>
+            </label>
+            <p class="hint">{t("settings.fps_metric_hint")}</p>
+          {/if}
 
           <div class="row static">
             <span class="row-label">{t("widget.add")}</span>
@@ -1410,12 +1491,33 @@
     text-overflow: ellipsis;
   }
 
-  .widget-size {
-    font-size: 10px;
+  .widget-grip {
+    display: grid;
+    place-items: center;
     color: var(--muted);
+    cursor: grab;
+    flex: none;
+    opacity: 0.75;
+  }
+
+  .widget-row.dragging {
+    opacity: 0.45;
+  }
+
+  .widget-row.drop-target {
+    border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+
+  .widget-size-select {
+    width: 74px;
+    padding: 2px 4px;
+    font-size: 9.5px;
+    border-radius: 6px;
     border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 1px 6px;
+    background: var(--surface-strong);
+    color: var(--fg);
+    flex: none;
   }
 
   .widget-row .btn {

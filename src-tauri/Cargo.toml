@@ -1,6 +1,6 @@
 [package]
 name = "isle"
-version = "1.7.0"
+version = "1.7.1"
 description = "Isle - a live island for Windows"
 edition = "2021"
 rust-version = "1.77"

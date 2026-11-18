@@ -332,11 +332,6 @@
     border-radius: 50%;
     border: 1px dashed color-mix(in srgb, var(--fg) 28%, transparent);
     box-shadow: inset 0 0 0 8px color-mix(in srgb, var(--bg) 55%, transparent);
-    animation: disc-spin 9s linear infinite;
-  }
-
-  @keyframes disc-spin {
-    to { transform: rotate(360deg); }
   }
 
   :global(:root[data-reduced-motion="true"]) .cover-disc {

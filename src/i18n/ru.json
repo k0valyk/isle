@@ -571,5 +571,12 @@
   "settings.update_install": "Обновить и перезапустить",
   "settings.update_downloading": "Загрузка… {percent}%",
   "settings.update_ready": "Обновление установлено, перезапускаю…",
-  "settings.update_error": "Не удалось обновить"
+  "settings.update_error": "Не удалось обновить",
+  "settings.char_robot": "Робот",
+  "settings.char_ghost": "Призрак",
+  "settings.char_bars": "Эквалайзер",
+  "settings.char_spark": "Искра",
+  "widget.drag_hint": "Перетащите за ручку, чтобы изменить порядок. Размер выберите в списке справа.",
+  "settings.fps_metric": "Нагрузка рядом с FPS",
+  "settings.fps_metric_hint": "Какую метрику показывать рядом с FPS — процессора или видеокарты."
 }

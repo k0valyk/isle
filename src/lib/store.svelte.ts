@@ -56,6 +56,7 @@ export interface Settings {
   chat_model: string;
   chat_provider: string;
   show_stats_collapsed: boolean;
+  fps_metric: "cpu" | "gpu";
   custom_bg: string;
   custom_fg: string;
   schema_version: number;
@@ -148,6 +149,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chat_model: "llama3.2",
   chat_provider: "ollama",
   show_stats_collapsed: false,
+  fps_metric: "cpu",
   custom_bg: "#0b1220",
   custom_fg: "#f1f5f9",
   schema_version: 2,
@@ -189,6 +191,7 @@ function adoptSettings(raw: Partial<Settings>): void {
   // The old "Load HUD" scene painted live CPU/GPU data above every tab. It is
   // retired; performance data now lives in the System tab and the FPS widget.
   if (store.settings.island_scene === "fps") store.settings.island_scene = "none";
+  if (store.settings.fps_metric !== "gpu") store.settings.fps_metric = "cpu";
   applyTheme();
 }
 

@@ -571,5 +571,12 @@
   "settings.update_install": "Update and restart",
   "settings.update_downloading": "Downloading… {percent}%",
   "settings.update_ready": "Update installed, restarting…",
-  "settings.update_error": "Update failed"
+  "settings.update_error": "Update failed",
+  "settings.char_robot": "Robot",
+  "settings.char_ghost": "Ghost",
+  "settings.char_bars": "Equalizer",
+  "settings.char_spark": "Spark",
+  "widget.drag_hint": "Drag by the handle to reorder. Pick the size in the list on the right.",
+  "settings.fps_metric": "Load next to FPS",
+  "settings.fps_metric_hint": "Which load to show next to FPS — CPU or GPU."
 }

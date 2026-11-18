@@ -1,6 +1,7 @@
 <script lang="ts">
   import AnimatedNumber from "./AnimatedNumber.svelte";
   import { effectiveFps, system } from "../stats.svelte";
+  import { store } from "../store.svelte";
 
   interface Props {
     compact?: boolean;
@@ -10,8 +11,14 @@
 
   const stats = $derived(system.data);
   const fps = $derived(effectiveFps(stats));
-  const cpu = $derived(stats ? Math.round(stats.cpu) : null);
-  const temp = $derived(stats?.cpuTemp != null ? Math.round(stats.cpuTemp) : null);
+  const gpuMetric = $derived(store.settings.fps_metric === "gpu");
+  const load = $derived(gpuMetric ? (stats?.gpu ?? null) : (stats?.cpu ?? null));
+  const loadLabel = $derived(gpuMetric ? "GPU" : "CPU");
+  const temp = $derived(
+    gpuMetric
+      ? (stats?.gpuTemp != null ? Math.round(stats.gpuTemp) : null)
+      : (stats?.cpuTemp != null ? Math.round(stats.cpuTemp) : null),
+  );
   const hot = $derived((stats?.cpu ?? 0) > 80 || (stats?.cpuTemp ?? 0) > 85);
 </script>
 
@@ -28,13 +35,13 @@
   </span>
   <span class="cell">
     <span class="value">
-      {#if cpu === null}
+      {#if load === null}
         —
       {:else}
-        <AnimatedNumber value={cpu} suffix="%" />
+        <AnimatedNumber value={load} suffix="%" />
       {/if}
     </span>
-    <span class="label">CPU</span>
+    <span class="label">{loadLabel}</span>
   </span>
   {#if temp !== null}
     <span class="cell temp">
