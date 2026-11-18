@@ -6,6 +6,7 @@
   import Character from "../components/Character.svelte";
   import MiniSpectrum from "../components/MiniSpectrum.svelte";
   import AnimatedNumber from "../components/AnimatedNumber.svelte";
+  import SmoothSparkline from "../components/SmoothSparkline.svelte";
   import { locale, store, t } from "../store.svelte";
   import { clock, initClock } from "../clock.svelte";
   import { ensureWeather, temperature, weather, weatherIcon, weatherKey } from "../weather.svelte";
@@ -16,7 +17,7 @@
     media,
     mediaControl,
   } from "../media.svelte";
-  import { history, initStats, system } from "../stats.svelte";
+  import { effectiveFps, history, initStats, system } from "../stats.svelte";
   import { initBattery, battery } from "../battery.svelte";
   import { addFiveMinutes, resetTimer, timer, timerLabel, toggleTimer } from "../timer.svelte";
   import { agentPhase, agents, initAgents } from "../agents.svelte";
@@ -34,6 +35,7 @@
 
   const meta = $derived(WIDGET_META[widget.kind] ?? WIDGET_META.clock);
   const stats = $derived(system.data);
+  const fpsNow = $derived(effectiveFps(stats));
   const current = $derived(weather.data?.current ?? null);
   const city = $derived(store.settings.weather_city || t("weather.city"));
   const lyricIndex = $derived(activeLyricIndex(media.position));
@@ -108,17 +110,8 @@
     return "RAM";
   }
 
-  function sparkline(values: number[]): string {
-    if (values.length < 2) return "0,26 100,26";
-    const max = Math.max(10, ...values);
-    return values
-      .map((value, index) => {
-        const x = (index / (values.length - 1)) * 100;
-        const y = 26 - (Math.min(max, value) / max) * 22;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
-  }
+  // Sparklines animate in SmoothSparkline.svelte.
+
 
   function bytesPerSecond(value: number): string {
     if (!Number.isFinite(value) || value <= 0) return "0";
@@ -267,7 +260,7 @@
               : t("home.music_hint")}
           </span>
           {#if media.current.active}
-            <span class="progress"><span style:width={`${progress}%`}></span></span>
+            <span class="progress"><span style:transform={`scaleX(${progress / 100})`}></span></span>
           {/if}
         </span>
         {#if media.current.active}
@@ -339,7 +332,7 @@
           <div class="metric-row">
             <span class="metric-name">{metricLabel(key)}</span>
             <span class="metric-bar">
-              <span style:width={`${percent(metricValue(key))}%`}></span>
+              <span style:transform={`scaleX(${percent(metricValue(key)) / 100})`}></span>
             </span>
             <span class="metric-value">
               <AnimatedNumber value={stats ? percent(metricValue(key)) : null} suffix="%" />
@@ -360,9 +353,9 @@
             <span class="unit">%</span>
           </span>
         </div>
-        <svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
-          <polyline points={sparkline(metricHistory(widget.kind))} />
-        </svg>
+        <div class="spark">
+          <SmoothSparkline values={metricHistory(widget.kind)} strokeWidth={1.6} fill={false} />
+        </div>
         <span class="sub">
           {widget.kind === "ram" && stats
             ? `${stats.ramUsedGb.toFixed(1)} / ${stats.ramTotalGb.toFixed(0)} GB`
@@ -386,16 +379,25 @@
         {/if}
       </div>
     {:else if widget.kind === "fps"}
-      <div class="metric-widget">
+      <div class="metric-widget perf-widget">
         <div class="metric-head">
           <span class="metric-name">FPS</span>
-          <span class="big metric-big">{stats?.fps != null ? Math.round(stats.fps) : "—"}</span>
+          <span class="big metric-big">{fpsNow === null ? "—" : Math.round(fpsNow)}</span>
+        </div>
+        <div class="perf-meta">
+          <span class="perf-cell">
+            <span class="perf-label">CPU</span>
+            <span class="perf-value">{stats ? `${Math.round(stats.cpu)}%` : "—"}</span>
+          </span>
+          {#if stats?.cpuTemp != null}
+            <span class="perf-cell">
+              <span class="perf-label">TEMP</span>
+              <span class="perf-value">{Math.round(stats.cpuTemp)}°</span>
+            </span>
+          {/if}
         </div>
         <span class="sub">
-          {stats?.fpsProcess || (stats?.refreshHz ? `${t("widget.screen_hz", { hz: stats.refreshHz })}` : "—")}
-        </span>
-        <span class="sub temp-hint">
-          {stats?.fps != null ? t("stats.fps_live") : t("widget.fps_hint")}
+          {stats?.fpsProcess || t("stats.fps_ui")}
         </span>
       </div>
     {:else if widget.kind === "disk"}
@@ -405,7 +407,7 @@
           <span class="big metric-big">{stats ? Math.round(stats.disk) : "—"}<span class="unit">%</span></span>
         </div>
         <span class="metric-bar wide">
-          <span style:width={`${percent(stats?.disk)}%`}></span>
+          <span style:transform={`scaleX(${percent(stats?.disk) / 100})`}></span>
         </span>
         <span class="sub">
           {stats ? `${stats.diskUsedGb.toFixed(0)} / ${stats.diskTotalGb.toFixed(0)} GB` : "—"}
@@ -433,7 +435,7 @@
           </span>
         </div>
         <span class="metric-bar wide">
-          <span style:width={`${percent(battery.data?.percent ?? 0)}%`}></span>
+          <span style:transform={`scaleX(${percent(battery.data?.percent ?? 0) / 100})`}></span>
         </span>
         <span class="sub">
           {battery.data?.charging
@@ -790,9 +792,12 @@
 
   .progress span {
     display: block;
+    width: 100%;
     height: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
     background: var(--accent);
-    transition: width 0.4s linear;
+    transition: transform 0.4s linear;
   }
 
   .media-controls {
@@ -909,10 +914,13 @@
 
   .metric-bar span {
     display: block;
+    width: 100%;
     height: 100%;
     border-radius: inherit;
+    transform: scaleX(0);
+    transform-origin: left center;
     background: var(--accent);
-    transition: width 0.4s var(--motion-ease, cubic-bezier(0.34, 1.2, 0.64, 1));
+    transition: transform 0.4s var(--motion-ease, cubic-bezier(0.34, 1.2, 0.64, 1));
   }
 
   .metric-value {
@@ -954,20 +962,36 @@
     font-size: 22px;
   }
 
+  .perf-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .perf-cell {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+  }
+
+  .perf-label {
+    font-size: 7px;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+
+  .perf-value {
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--fg);
+  }
+
   .spark {
     width: 100%;
     height: 20px;
     overflow: visible;
-  }
-
-  .spark polyline {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 1.6;
-    vector-effect: non-scaling-stroke;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    opacity: 0.85;
   }
 
   .temp-widget {

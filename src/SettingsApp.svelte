@@ -17,6 +17,7 @@
   } from "./lib/store.svelte";
   import { localeName, locales, type Locale } from "./lib/i18n";
   import { ensureWeather } from "./lib/weather.svelte";
+  import { checkForUpdates, installUpdate, updates } from "./lib/updates.svelte";
   import {
     DEFAULT_WIDGETS,
     nextSize,
@@ -54,6 +55,7 @@
     { id: "eyes", label: "settings.char_eyes" },
     { id: "dots", label: "settings.char_dots" },
     { id: "pill", label: "settings.char_pill" },
+    { id: "hud", label: "settings.char_hud" },
     { id: "cat", label: "settings.char_cat" },
     { id: "orb", label: "settings.char_orb" },
   ];
@@ -64,7 +66,6 @@
     { id: "aurora", label: "settings.scene_aurora" },
     { id: "bubbles", label: "settings.scene_bubbles" },
     { id: "matrix", label: "settings.scene_matrix" },
-    { id: "fps", label: "settings.scene_fps" },
     { id: "gif", label: "settings.scene_gif" },
   ];
 
@@ -962,7 +963,39 @@
 
           <div class="about-row">
             <span>{t("settings.about_version", { version: store.version })}</span>
+            <button
+              class="btn update-btn"
+              disabled={updates.phase === "checking" || updates.phase === "downloading"}
+              onclick={() => void checkForUpdates()}
+            >
+              <Icon name="refresh" size={13} />
+              {updates.phase === "checking" ? t("settings.update_checking") : t("settings.update_check")}
+            </button>
           </div>
+
+          {#if updates.phase === "current"}
+            <p class="hint update-hint">{t("settings.update_current")}</p>
+          {:else if updates.phase === "available"}
+            <div class="update-card">
+              <span class="update-title">{t("settings.update_available", { version: updates.version })}</span>
+              {#if updates.notes}
+                <p class="update-notes">{updates.notes}</p>
+              {/if}
+              <button class="btn" onclick={() => void installUpdate()}>
+                <Icon name="download" size={13} />
+                {t("settings.update_install")}
+              </button>
+            </div>
+          {:else if updates.phase === "downloading"}
+            <div class="update-card">
+              <span class="update-title">{t("settings.update_downloading", { percent: Math.round(updates.progress * 100) })}</span>
+              <span class="update-bar"><span style:transform={`scaleX(${updates.progress})`}></span></span>
+            </div>
+          {:else if updates.phase === "ready"}
+            <p class="hint update-hint">{t("settings.update_ready")}</p>
+          {:else if updates.phase === "error"}
+            <p class="hint update-hint error-hint">{t("settings.update_error")}: {updates.error}</p>
+          {/if}
           <div class="about-row muted">{t("settings.about_license")}</div>
 
           <h3>{t("settings.privacy_title")}</h3>
@@ -1394,8 +1427,69 @@
   }
 
   .about-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     font-size: 12px;
     padding: 3px 0;
+  }
+
+  .update-btn {
+    padding: 4px 9px;
+    font-size: 10.5px;
+  }
+
+  .update-card {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    align-items: flex-start;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .update-title {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .update-notes {
+    margin: 0;
+    font-size: 10.5px;
+    color: var(--muted);
+    white-space: pre-line;
+    max-height: 96px;
+    overflow-y: auto;
+  }
+
+  .update-hint {
+    margin-top: 6px;
+  }
+
+  .error-hint {
+    color: var(--danger);
+  }
+
+  .update-bar {
+    display: block;
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--surface-strong);
+    overflow: hidden;
+  }
+
+  .update-bar span {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform-origin: left center;
+    background: var(--accent);
+    transition: transform 0.15s linear;
   }
 
   .error {

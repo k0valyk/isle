@@ -4,6 +4,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { store } from "../store.svelte";
   import { isPlaying } from "../media.svelte";
+  import PerfHud from "./PerfHud.svelte";
 
   let host: HTMLDivElement | undefined = $state();
   let offsetX = $state(0);
@@ -13,7 +14,7 @@
   const playing = $derived(isPlaying());
 
   function onMove(clientX: number, clientY: number): void {
-    if (!host || variant === "none") return;
+    if (!host || variant === "none" || variant === "hud") return;
     const rect = host.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
@@ -84,6 +85,8 @@
       <span class="dot"></span>
       <span class="dot"></span>
       <span class="dot"></span>
+    {:else if variant === "hud"}
+      <PerfHud />
     {:else if variant === "pill"}
       <span class="pill">
         <span class="pupil"></span>
@@ -127,6 +130,10 @@
     animation: groove 0.62s ease-in-out infinite;
   }
 
+  .character[data-variant="hud"].playing {
+    animation: none;
+  }
+
   .character.playing .eye {
     box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 45%, transparent);
   }
@@ -161,7 +168,8 @@
     border-radius: 50%;
     background: #101012;
     transform: translate(var(--look-x), var(--look-y));
-    transition: transform 0.12s ease-out;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
   }
 
   .dot {

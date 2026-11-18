@@ -286,7 +286,7 @@
                 {/if}
               </span>
             </div>
-            <div class="bar"><span style:width={`${progress(item)}%`}></span></div>
+            <div class="bar"><span style:transform={`scaleX(${progress(item) / 100})`}></span></div>
           </div>
           {#if item.done && !item.error}
             <button class="row-action" onclick={() => openDownload(item)} title={t("downloads.open")} aria-label={t("downloads.open")}>
@@ -667,10 +667,13 @@
 
   .bar span {
     display: block;
+    width: 100%;
     height: 100%;
     background: linear-gradient(to right, var(--accent), #93c5fd);
     border-radius: inherit;
-    transition: width 120ms linear;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 120ms linear;
   }
 
   .download.done .bar span {

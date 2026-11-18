@@ -14,12 +14,30 @@
   );
 </script>
 
-<span class="clock" aria-label={time}>{time}</span>
+{#key time}
+  <span class="clock" aria-label={time}>{time}</span>
+{/key}
 
 <style>
   .clock {
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.3px;
     white-space: nowrap;
+    animation: clock-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes clock-in {
+    from {
+      opacity: 0.55;
+      transform: translateY(1.5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  :global(:root[data-reduced-motion="true"]) .clock {
+    animation: none;
   }
 </style>

@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { history, system } from "../stats.svelte";
-
   interface Props {
     scene: string;
     gifUrl: string;
@@ -14,26 +12,6 @@
     void gifUrl;
     gifBroken = false;
   });
-
-  const stats = $derived(system.data);
-  const cpu = $derived(Math.round(stats?.cpu ?? 0));
-  const gpu = $derived(Math.round(stats?.gpu ?? 0));
-  const ram = $derived(Math.round(stats?.ram ?? 0));
-  const hz = $derived(stats?.refreshHz ?? 0);
-  const bars = $derived(history.cpu.slice(-16));
-
-  function polyline(values: number[]): string {
-    if (!values.length) return "";
-    const step = 100 / Math.max(1, values.length - 1);
-    return values
-      .map((value, index) => `${(index * step).toFixed(2)},${(100 - value).toFixed(2)}`)
-      .join(" ");
-  }
-
-  const ring = (value: number): string => {
-    const degrees = Math.max(2, Math.min(100, value)) * 3.6;
-    return `conic-gradient(var(--live-accent) 0deg ${degrees}deg, transparent ${degrees}deg 360deg)`;
-  };
 </script>
 
 {#if scene !== "none"}
@@ -80,29 +58,8 @@
         ></span>
       {/each}
     {:else if scene === "fps" && expanded}
-      <div class="hud">
-        <div class="gauge">
-          <span class="ring" style:background={ring(cpu)}></span>
-          <span class="ring-value">{cpu}</span>
-          <span class="ring-label">CPU</span>
-        </div>
-        <div class="gauge gpu">
-          <span class="ring" style:background={ring(gpu)}></span>
-          <span class="ring-value">{gpu}</span>
-          <span class="ring-label">GPU</span>
-        </div>
-        <div class="gauge ram">
-          <span class="ring" style:background={ring(ram)}></span>
-          <span class="ring-value">{ram}</span>
-          <span class="ring-label">RAM</span>
-        </div>
-        <div class="graph">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polyline points={polyline(bars)} />
-          </svg>
-          <span class="hz">{hz ? `${hz} Hz` : "—"}</span>
-        </div>
-      </div>
+      <!-- Retired: live load data belongs to the System tab. Kept as a no-op so
+           an older settings payload renders nothing instead of a floating HUD. -->
     {:else if scene === "gif" && gifUrl && !gifBroken}
       <img
         class="gif"
@@ -309,81 +266,6 @@
       opacity: 0;
       transform: translateY(260%);
     }
-  }
-
-  /* Load HUD */
-  .hud {
-    position: absolute;
-    inset: 8px 14px 6px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    opacity: 0.95;
-  }
-
-  .gauge {
-    position: relative;
-    width: 52px;
-    height: 52px;
-    display: grid;
-    place-items: center;
-    flex: none;
-  }
-
-  .ring {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
-    opacity: 0.75;
-    transition: background 0.6s ease;
-  }
-
-  .ring-value {
-    font-size: 13px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--fg);
-    text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
-  }
-
-  .ring-label {
-    position: absolute;
-    bottom: 7px;
-    font-size: 6.5px;
-    letter-spacing: 0.6px;
-    color: var(--muted);
-  }
-
-  .graph {
-    flex: 1;
-    min-width: 0;
-    height: 54px;
-    position: relative;
-    border-bottom: 1px solid color-mix(in srgb, var(--live-accent) 35%, transparent);
-  }
-
-  .graph svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .graph polyline {
-    fill: none;
-    stroke: var(--live-accent);
-    stroke-width: 2;
-    vector-effect: non-scaling-stroke;
-    filter: drop-shadow(0 0 3px var(--live-accent));
-    transition: all 0.5s ease;
-  }
-
-  .hz {
-    position: absolute;
-    right: 0;
-    top: -2px;
-    font-size: 8px;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
   }
 
   /* GIF */

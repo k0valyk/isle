@@ -257,13 +257,27 @@ function apply(snapshot: MediaSnapshot): void {
     media.current.title === snapshot.title &&
     media.current.artist === snapshot.artist &&
     media.current.album === snapshot.album;
+  const previousPosition = media.position;
   media.current = {
     ...snapshot,
     artwork: snapshot.artwork ?? (sameTrack ? media.current.artwork : null),
   };
-  basePosition = snapshot.position;
-  baseTime = performance.now();
-  media.position = snapshot.position;
+  // Windows reports the timeline in half-second steps every ~400 ms. Blindly
+  // re-basing on every snapshot makes the progress slider jump backwards, so
+  // the local clock keeps running unless the drift is real (external seek,
+  // pause, track change).
+  const drift = Math.abs(snapshot.position - previousPosition);
+  const keepClock = sameTrack && snapshot.status === "playing" && drift < 0.8;
+  if (!keepClock) {
+    basePosition = snapshot.position;
+    baseTime = performance.now();
+    media.position = snapshot.position;
+  } else {
+    // Keep the smooth local position, but re-anchor the clock: after a pause
+    // the stored timestamp is stale and would make the bar jump on resume.
+    basePosition = media.position;
+    baseTime = performance.now();
+  }
   if (snapshot.artwork) {
     void updateAccent(snapshot.artwork);
   } else if (!sameTrack) {
@@ -301,7 +315,7 @@ export async function initMedia(): Promise<void> {
     media.position = media.current.duration
       ? Math.min(media.current.duration, next)
       : next;
-  }, 250);
+  }, 120);
 }
 
 export async function mediaControl(
@@ -313,6 +327,21 @@ export async function mediaControl(
   } catch (error) {
     console.warn("Media command failed", error);
   }
+}
+
+/**
+ * Seek with an immediate optimistic position so the thumb, the time labels and
+ * the lyrics follow the pointer instead of waiting for the next snapshot.
+ */
+export function seekMedia(seconds: number): void {
+  const duration = media.current.duration || 0;
+  const target = duration > 0
+    ? Math.max(0, Math.min(duration, seconds))
+    : Math.max(0, seconds);
+  basePosition = target;
+  baseTime = performance.now();
+  media.position = target;
+  void mediaControl("seek", Math.round(target));
 }
 
 export const volume = $state<{ level: number; muted: boolean; ready: boolean }>({

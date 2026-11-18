@@ -1,12 +1,51 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "../../components/Icon.svelte";
+  import SmoothSparkline from "../../components/SmoothSparkline.svelte";
   import { locale, t } from "../../store.svelte";
-  import { history, system } from "../../stats.svelte";
+  import { effectiveFps, fpsLabel, history, system } from "../../stats.svelte";
 
   const stats = $derived(system.data);
   const spark = $derived(history.cpu.slice(-36));
+  const fps = $derived(effectiveFps(stats));
+  const fpsSource = $derived(fpsLabel(stats));
   let fpsActionError = $state("");
+
+  interface ComponentRow {
+    id: string;
+    icon: string;
+    name: string;
+    load: number | null;
+    temp: number | null;
+  }
+
+  const components = $derived.by<ComponentRow[]>(() => {
+    const value = stats;
+    if (!value) return [];
+    const rows: ComponentRow[] = [
+      { id: "cpu", icon: "cpu", name: "CPU", load: percent(value.cpu), temp: value.cpuTemp ?? null },
+    ];
+    if (value.gpu !== null && value.gpu !== undefined) {
+      rows.push({
+        id: "gpu",
+        icon: "monitor",
+        name: "GPU",
+        load: percent(value.gpu),
+        temp: value.gpuTemp ?? null,
+      });
+    }
+    rows.push({ id: "ram", icon: "memory", name: "RAM", load: percent(value.ram), temp: null });
+    if (value.diskLoad !== null || value.diskTemp !== null) {
+      rows.push({
+        id: "disk",
+        icon: "disk",
+        name: t("stats.disk_short"),
+        load: value.diskLoad === null ? null : percent(value.diskLoad),
+        temp: value.diskTemp ?? null,
+      });
+    }
+    return rows.filter((row) => row.load !== null || row.temp !== null);
+  });
 
   async function restartAsAdmin(): Promise<void> {
     fpsActionError = "";
@@ -21,14 +60,6 @@
     return Math.max(0, Math.min(100, Math.round(value ?? 0)));
   }
 
-  function sparkline(values: number[]): string {
-    if (values.length < 2) return "";
-    const step = 100 / (values.length - 1);
-    return values
-      .map((value, index) => `${(index * step).toFixed(2)},${(100 - value).toFixed(2)}`)
-      .join(" ");
-  }
-
   function hardware(value: string | undefined): string {
     return value && value.trim() ? value : t("stats.unavailable");
   }
@@ -38,7 +69,7 @@
     if (value?.fpsError === "admin") return t("stats.fps_admin");
     if (value?.fpsError === "missing") return t("stats.fps_missing");
     if (value?.fpsError === "capture") return t("stats.fps_capture");
-    return t("stats.fps_hint");
+    return value?.refreshHz ? `${t("stats.fps_ui")} · ${value.refreshHz} Hz` : t("stats.fps_ui");
   }
 
   function bytes(value: number): string {
@@ -58,25 +89,23 @@
   </div>
 
   <div class="spark" aria-hidden="true">
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-      <polyline points={sparkline(spark)} />
-    </svg>
+    <SmoothSparkline values={spark} strokeWidth={1.6} />
   </div>
 
   <div class="grid">
     <div class="stat">
       <div class="label"><Icon name="cpu" size={13} /><span>CPU</span><strong>{percent(stats?.cpu)}%</strong></div>
-      <div class="bar"><span style:width={`${percent(stats?.cpu)}%`}></span></div>
+      <div class="bar"><span style:transform={`scaleX(${percent(stats?.cpu) / 100})`}></span></div>
     </div>
 
     <div class="stat">
       <div class="label"><Icon name="monitor" size={13} /><span>GPU</span><strong>{stats?.gpu === null || stats?.gpu === undefined ? t("stats.unavailable") : `${percent(stats.gpu)}%`}</strong></div>
-      <div class="bar"><span style:width={`${percent(stats?.gpu)}%`}></span></div>
+      <div class="bar"><span style:transform={`scaleX(${percent(stats?.gpu) / 100})`}></span></div>
     </div>
 
     <div class="stat">
       <div class="label"><Icon name="memory" size={13} /><span>RAM</span><strong>{percent(stats?.ram)}%</strong></div>
-      <div class="bar"><span style:width={`${percent(stats?.ram)}%`}></span></div>
+      <div class="bar"><span style:transform={`scaleX(${percent(stats?.ram) / 100})`}></span></div>
       {#if stats}
         <span class="hint">{t("stats.memory", { used: stats.ramUsedGb.toFixed(1), total: stats.ramTotalGb.toFixed(0) })}</span>
       {/if}
@@ -84,12 +113,12 @@
   </div>
 
   <div class="fps" class:live={stats?.fps != null}>
-    <span class="fps-number">{stats?.fps != null ? Math.round(stats.fps) : "—"}</span>
+    <span class="fps-number">{fps === null ? "—" : Math.round(fps)}</span>
     <div class="fps-copy">
       <span class="fps-label">
         FPS
-        {#if stats?.fps != null && stats.fpsProcess}
-          <span class="fps-game">· {stats.fpsProcess}</span>
+        {#if fpsSource}
+          <span class="fps-game">· {fpsSource}</span>
         {/if}
       </span>
       <span class="fps-hint">{fpsHint(stats)}{fpsActionError ? ` · ${fpsActionError}` : ""}</span>
@@ -129,6 +158,24 @@
       <span class="hw-value" title={hardware(stats?.osName)}>{hardware(stats?.osName)}</span>
     </div>
   </div>
+
+  {#if components.length}
+    <div class="components">
+      <span class="hw-title">{t("stats.components")}</span>
+      {#each components as row (row.id)}
+        <div class="component-row">
+          <Icon name={row.icon} size={11} />
+          <span class="component-name">{row.name}</span>
+          {#if row.load !== null}
+            <span class="component-load">{row.load}%</span>
+          {/if}
+          {#if row.temp !== null}
+            <span class="component-temp">{Math.round(row.temp)}°</span>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   <div class="extra">
     <span class="chip" title={t("widget.disk_desc")}>
@@ -200,22 +247,6 @@
     opacity: 0.75;
   }
 
-  .spark svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .spark polyline {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 1.6;
-    vector-effect: non-scaling-stroke;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 60%, transparent));
-    transition: all 0.45s ease;
-  }
-
   .grid {
     flex: none;
     min-height: 0;
@@ -254,10 +285,13 @@
 
   .bar span {
     display: block;
+    width: 100%;
     height: 100%;
     border-radius: inherit;
+    transform: scaleX(0);
+    transform-origin: left center;
     background: linear-gradient(to right, var(--accent), #93c5fd);
-    transition: width 0.45s ease;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .hint {
@@ -398,6 +432,53 @@
     }
   }
 
+  .components {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .component-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+  }
+
+  .component-row :global(svg) {
+    color: var(--accent);
+    flex: none;
+    opacity: 0.85;
+  }
+
+  .component-name {
+    color: var(--muted);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .component-load {
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .component-temp {
+    color: var(--warn);
+    font-weight: 650;
+    min-width: 26px;
+    text-align: right;
+  }
+
   .extra {
     flex: none;
     display: flex;
@@ -418,8 +499,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  :global(:root[data-reduced-motion="true"]) .bar span,
-  :global(:root[data-reduced-motion="true"]) .spark polyline {
+  :global(:root[data-reduced-motion="true"]) .bar span {
     transition: none;
   }
 

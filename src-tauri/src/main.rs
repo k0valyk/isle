@@ -11,6 +11,8 @@ mod capture;
 #[cfg(windows)]
 mod cursor;
 #[cfg(windows)]
+mod elevation;
+#[cfg(windows)]
 mod fps;
 #[cfg(windows)]
 mod media;
@@ -36,6 +38,9 @@ mod capture;
 #[cfg(not(windows))]
 #[path = "macos/cursor.rs"]
 mod cursor;
+#[cfg(not(windows))]
+#[path = "macos/elevation.rs"]
+mod elevation;
 #[cfg(not(windows))]
 #[path = "macos/fps.rs"]
 mod fps;
@@ -125,46 +130,45 @@ fn app_info() -> serde_json::Value {
 #[cfg(windows)]
 #[tauri::command]
 fn restart_as_admin(app: AppHandle) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
-
-    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    let pid = std::process::id();
-    let script_path = std::env::temp_dir().join("isle-elevate.ps1");
-    let script = "param([int]$OldPid,[string]$Exe)\n\
-        Wait-Process -Id $OldPid -ErrorAction SilentlyContinue\n\
-        Start-Sleep -Milliseconds 700\n\
-        Start-Process -FilePath $Exe\n";
-    std::fs::write(&script_path, script).map_err(|error| error.to_string())?;
-    let command = format!(
-        "Start-Process -FilePath 'powershell' -Verb RunAs -ArgumentList \
-         '-NoProfile','-ExecutionPolicy','Bypass','-File','{}','-OldPid','{}','-Exe','{}'",
-        script_path.display(),
-        pid,
-        exe.display()
-    );
-    let status = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &command,
-        ])
-        .creation_flags(0x0800_0000)
-        .status()
-        .map_err(|error| error.to_string())?;
-    if !status.success() {
-        return Err("Administrator restart was cancelled".into());
-    }
+    // One UAC prompt registers the elevated task; every later launch goes
+    // through it silently, so FPS keeps working without asking again.
+    elevation::enable()?;
+    elevation::handoff();
     app.exit(0);
     Ok(())
+}
+
+#[cfg(windows)]
+#[tauri::command]
+fn fps_access_status() -> serde_json::Value {
+    serde_json::json!({
+        "elevated": elevation::is_elevated(),
+        "task": elevation::task_exists(),
+    })
+}
+
+#[cfg(windows)]
+#[tauri::command]
+fn disable_fps_access() -> bool {
+    elevation::disable()
 }
 
 #[cfg(not(windows))]
 #[tauri::command]
 fn restart_as_admin(_app: AppHandle) -> Result<(), String> {
     Err("Administrator restart is only available on Windows".into())
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+fn fps_access_status() -> serde_json::Value {
+    serde_json::json!({ "elevated": true, "task": false })
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+fn disable_fps_access() -> bool {
+    false
 }
 
 #[tauri::command]
@@ -513,12 +517,31 @@ fn spawn_fullscreen_watcher(app: AppHandle) {
 }
 
 fn main() {
+    // Logon launches go through the elevated task; if the user turned
+    // autostart off we exit before creating any window.
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|argument| argument == "--logon") && !settings::load().autostart {
+        return;
+    }
+    // A manual launch is handed over to the elevated task so FPS works
+    // without a prompt. The task passes --elevated, which stops the handoff.
+    if !args.iter().any(|argument| argument == "--elevated")
+        && elevation::task_exists()
+        && !elevation::is_elevated()
+        && elevation::should_handoff()
+    {
+        elevation::handoff();
+        return;
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             toggle_island(app);
         }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -634,6 +657,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             app_info,
             restart_as_admin,
+            fps_access_status,
+            disable_fps_access,
             open_settings,
             hotkeys::hotkeys_status,
             reset_island_position,

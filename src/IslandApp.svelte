@@ -26,7 +26,6 @@
   import Phone from "./lib/modules/phone/Phone.svelte";
   import { MODULES } from "./lib/modules/registry";
   import { motionDuration, store, t, updateSettings } from "./lib/store.svelte";
-  import { gsap } from "gsap";
   import { ensureWeather } from "./lib/weather.svelte";
   import { initMedia, audio, currentLyricText, media } from "./lib/media.svelte";
   import {
@@ -36,7 +35,7 @@
     timerLabel,
     timerVisible,
   } from "./lib/timer.svelte";
-  import { initStats, system } from "./lib/stats.svelte";
+  import { initStats, effectiveFps, system } from "./lib/stats.svelte";
   import { initBattery } from "./lib/battery.svelte";
   import { agentPhase, agents, initAgents } from "./lib/agents.svelte";
 
@@ -74,8 +73,6 @@
     positionTrackingReady = true;
   }, 1600);
   let dockOverride = $state<string | null>(null);
-  let sheenEl: HTMLSpanElement | undefined = $state();
-  let leanX = $state(0);
   let near = $state(0);
   let ripple = $state<{ x: number; y: number; id: number } | null>(null);
   let musicAutoKey = "";
@@ -116,10 +113,15 @@
       lyricLine,
   );
   const agentState = $derived(agentPhase(agents.events[0]));
+  const fpsNow = $derived(effectiveFps());
 
   const collapsedWidth = $derived(
     COLLAPSED_BASE +
-      (store.settings.character && store.settings.character !== "none" ? COLLAPSED_CHARACTER : 0) +
+      (store.settings.character === "hud"
+        ? 104
+        : store.settings.character && store.settings.character !== "none"
+          ? COLLAPSED_CHARACTER
+          : 0) +
       (store.settings.show_battery ? COLLAPSED_BATTERY : 0),
   );
 
@@ -246,25 +248,6 @@
     }
   }
 
-  function playSheen(): void {
-    const el = sheenEl;
-    if (!el || store.settings.reduced_motion) return;
-    gsap.killTweensOf(el);
-    gsap.fromTo(
-      el,
-      { xPercent: -140, opacity: 0 },
-      {
-        xPercent: 260,
-        opacity: 0.45,
-        duration: 0.9,
-        ease: "power2.out",
-        onComplete: () => {
-          gsap.set(el, { opacity: 0 });
-        },
-      },
-    );
-  }
-
   function expand(): void {
     if (expanded) return;
     clearTimers();
@@ -274,7 +257,6 @@
     // Grow the hit region immediately so the animation is never clipped.
     if (regionTimer) clearTimeout(regionTimer);
     applyTargetRegion("expanded");
-    playSheen();
   }
 
   function collapse(): void {
@@ -299,7 +281,6 @@
       banner = null;
       if (regionTimer) clearTimeout(regionTimer);
       applyTargetRegion("expanded");
-      playSheen();
     } else {
       if (pinned) updateSettings({ island_pinned: false });
       queueRegion("collapsed", motionDuration() + 20);
@@ -659,7 +640,6 @@
       const distance = Math.hypot(dx, dy);
       const reach = Math.max(0, Math.min(1, 1 - distance / 230));
       near = reach * reach;
-      leanX = Math.max(-1, Math.min(1, dx / 240)) * 2.2 * reach;
       void dy;
     }).then((off) => unlisten.push(off));
 
@@ -790,11 +770,9 @@
     style:--audio-level={audio.level}
     style:--live-accent={liveAccent}
     style:--near={near}
-    style:--lean-x={`${leanX}px`}
     role="region"
     aria-label={t("app.name")}
   >
-    <span class="sheen" bind:this={sheenEl} aria-hidden="true"></span>
     <SceneLayer
       scene={store.settings.island_scene}
       gifUrl={store.settings.island_gif_url}
@@ -852,6 +830,13 @@
             </button>
           {/each}
         </nav>
+
+        <span class="chrome-perf" aria-hidden="true">
+          <span class="chrome-fps">{fpsNow === null ? "—" : Math.round(fpsNow)} FPS</span>
+          {#if system.data?.cpuTemp != null}
+            <span class="chrome-temp">{Math.round(system.data.cpuTemp)}°</span>
+          {/if}
+        </span>
 
         <div class="chrome-actions">
           <button
@@ -1027,7 +1012,8 @@
             <Icon name="gauge" size={11} />
             <span>
               CPU {Math.round(system.data.cpu)} · GPU {system.data.gpu === null ? "—" : Math.round(system.data.gpu)} · RAM {Math.round(system.data.ram)}
-              {#if system.data.fps != null}· {Math.round(system.data.fps)} FPS{/if}
+              {#if system.data.cpuTemp != null}· {Math.round(system.data.cpuTemp)}°{/if}
+              {#if fpsNow != null}· {Math.round(fpsNow)} FPS{/if}
             </span>
           </span>
         {:else if media.current.active && media.current.status === "playing"}
@@ -1040,12 +1026,22 @@
               <span class="collapsed-lyric" title={`${media.current.title} — ${lyricLine}`}>{lyricLine}</span>
             {/key}
           {:else}
-            <div class="collapsed-clock"><Clock /></div>
+            <div class="collapsed-clock">
+              <Clock />
+              {#if store.settings.character !== "hud"}
+                <span class="collapsed-fps">{fpsNow === null ? "—" : `${Math.round(fpsNow)} fps`}</span>
+              {/if}
+            </div>
           {/if}
           <MiniSpectrum />
         {:else}
           <Character />
-          <div class="collapsed-clock"><Clock /></div>
+          <div class="collapsed-clock">
+            <Clock />
+            {#if store.settings.character !== "hud"}
+              <span class="collapsed-fps">{fpsNow === null ? "—" : `${Math.round(fpsNow)} fps`}</span>
+            {/if}
+          </div>
           <WeatherBadge />
         {/if}
         {#if agentState === "working" || agentState === "attention" || agentState === "error"}
@@ -1110,7 +1106,6 @@
       height var(--motion-duration, 320ms) var(--motion-ease, cubic-bezier(0.34, 1.2, 0.64, 1)),
       border-radius var(--motion-fast, 180ms) ease,
       box-shadow var(--motion-fast, 180ms) ease;
-    will-change: width, height;
     user-select: none;
     isolation: isolate;
   }
@@ -1130,28 +1125,6 @@
 
   .island.dragging {
     cursor: grabbing;
-  }
-
-  .sheen {
-    position: absolute;
-    top: -20%;
-    bottom: -20%;
-    left: 0;
-    width: 42%;
-    pointer-events: none;
-    background: linear-gradient(
-      100deg,
-      transparent,
-      color-mix(in srgb, var(--live-accent, var(--accent)) 22%, transparent) 35%,
-      rgba(255, 255, 255, 0.22) 50%,
-      color-mix(in srgb, var(--live-accent, var(--accent)) 18%, transparent) 65%,
-      transparent
-    );
-    filter: blur(6px);
-    opacity: 0;
-    transform: translateX(-140%);
-    z-index: 0;
-    will-change: transform, opacity;
   }
 
   .island.dragging::after {
@@ -1303,8 +1276,6 @@
     font-size: 13px;
     font-weight: 550;
     cursor: grab;
-    transform: translateX(var(--lean-x, 0));
-    transition: transform 0.18s ease-out;
   }
 
   .collapsed:active {
@@ -1312,7 +1283,22 @@
   }
 
   .collapsed-clock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    line-height: 1;
     letter-spacing: -0.2px;
+  }
+
+  .collapsed-fps {
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
   }
 
   .collapsed-art {
@@ -1532,8 +1518,6 @@
     border-bottom: 1px solid var(--border);
     cursor: grab;
     z-index: 1;
-    transform: translateX(var(--lean-x, 0));
-    transition: transform 0.18s ease-out;
   }
 
   .chrome:active {
@@ -1558,6 +1542,31 @@
     align-items: center;
     gap: 1px;
     flex: none;
+  }
+
+  .chrome-perf {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: none;
+    padding: 3px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    font-size: 8.5px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .chrome-fps {
+    color: color-mix(in srgb, var(--live-accent) 78%, var(--fg));
+  }
+
+  .chrome-temp {
+    color: var(--muted);
   }
 
   .tab {
@@ -1608,10 +1617,8 @@
     min-height: 0;
     padding: 10px;
     overflow: hidden;
-    animation: body-slide var(--motion-duration, 320ms) var(--motion-ease, ease);
+    animation: body-slide var(--motion-duration, 380ms) var(--motion-ease, ease);
     z-index: 1;
-    transform: translateX(var(--lean-x, 0));
-    transition: transform 0.18s ease-out;
   }
 
   :global(:root[data-motion="cinematic"]) .body {
@@ -1625,33 +1632,29 @@
   @keyframes body-slide {
     from {
       opacity: 0;
-      transform: translateX(calc(var(--dir, 1) * 10px)) scale(0.992);
-      filter: blur(1.5px);
+      transform: translateX(calc(var(--dir, 1) * 9px));
     }
     to {
       opacity: 1;
-      transform: translateX(0) scale(1);
-      filter: blur(0);
+      transform: translateX(0);
     }
   }
 
   @keyframes body-rise {
     from {
       opacity: 0;
-      transform: translateY(9px) translateX(calc(var(--dir, 1) * 7px)) scale(0.988);
-      filter: blur(2px);
+      transform: translateY(9px) translateX(calc(var(--dir, 1) * 7px));
     }
     to {
       opacity: 1;
-      transform: translateY(0) translateX(0) scale(1);
-      filter: blur(0);
+      transform: translateY(0) translateX(0);
     }
   }
 
   @keyframes body-pop {
     from {
       opacity: 0;
-      transform: translateX(calc(var(--dir, 1) * 5px)) scale(0.94);
+      transform: translateX(calc(var(--dir, 1) * 5px)) scale(0.985);
     }
     to {
       opacity: 1;

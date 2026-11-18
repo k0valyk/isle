@@ -111,7 +111,7 @@ export const DEFAULT_SETTINGS: Settings = {
   character_speed: 1,
   theme: "classic",
   accent_color: "#3b82f6",
-  font: "Inter",
+  font: "system",
   radius: 24,
   reduced_motion: false,
   island_width: 176,
@@ -186,6 +186,9 @@ function adoptSettings(raw: Partial<Settings>): void {
         ? raw.widgets.map((widget) => ({ ...widget }))
         : DEFAULT_WIDGETS.map((widget) => ({ ...widget })),
   };
+  // The old "Load HUD" scene painted live CPU/GPU data above every tab. It is
+  // retired; performance data now lives in the System tab and the FPS widget.
+  if (store.settings.island_scene === "fps") store.settings.island_scene = "none";
   applyTheme();
 }
 
@@ -373,10 +376,11 @@ export interface MotionProfile {
 }
 
 export const MOTION_PROFILES: Record<string, MotionProfile> = {
-  soft: { duration: 320, ease: "cubic-bezier(0.34, 1.2, 0.64, 1)", overshoot: 1.02 },
-  snappy: { duration: 210, ease: "cubic-bezier(0.22, 1.4, 0.36, 1)", overshoot: 1.05 },
-  cinematic: { duration: 480, ease: "cubic-bezier(0.16, 1, 0.3, 1)", overshoot: 1.06 },
-  calm: { duration: 420, ease: "cubic-bezier(0.4, 0, 0.2, 1)", overshoot: 1 },
+  // Apple-like ease-out: quick departure, long soft landing, no bounce.
+  soft: { duration: 380, ease: "cubic-bezier(0.32, 0.72, 0, 1)", overshoot: 1.02 },
+  snappy: { duration: 240, ease: "cubic-bezier(0.28, 0.84, 0.36, 1)", overshoot: 1.05 },
+  cinematic: { duration: 520, ease: "cubic-bezier(0.22, 0.61, 0.16, 1)", overshoot: 1.01 },
+  calm: { duration: 460, ease: "cubic-bezier(0.4, 0, 0.2, 1)", overshoot: 1 },
 };
 
 export function motionProfile(): MotionProfile {
@@ -448,8 +452,8 @@ export function applyTheme(): void {
   root.style.setProperty("--radius", `${store.settings.radius}px`);
   const font =
     !store.settings.font || store.settings.font === "system"
-      ? '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'
-      : `"${store.settings.font}", "Segoe UI", system-ui, sans-serif`;
+      ? '"Segoe UI Variable Text", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'
+      : `"${store.settings.font}", "${store.settings.font} Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
   root.style.setProperty("--font", font);
   root.dataset.theme = themeKey;
   root.dataset.themeMode = store.settings.theme;

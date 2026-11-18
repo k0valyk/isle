@@ -73,8 +73,14 @@ body {
   color: var(--fg);
   font-size: var(--text-sm);
   line-height: 1.4;
+  /* Crisp, Apple-like text: grayscale smoothing without faux-bold synthesis. */
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  font-kerning: normal;
   text-rendering: optimizeLegibility;
+  text-size-adjust: 100%;
 }
 
 html.settings-window,

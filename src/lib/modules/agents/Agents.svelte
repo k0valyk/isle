@@ -185,7 +185,7 @@
               <span class="usage-cost">${item.cost.toFixed(3)}</span>
             </div>
             <div class="usage-bar" title={`${compact(item.contextUsed)} / ${item.contextLimit ? compact(item.contextLimit) : "—"}`}>
-              <span style:width={`${usedPercent(item)}%`}></span>
+              <span style:transform={`scaleX(${usedPercent(item) / 100})`}></span>
             </div>
             <div class="usage-meta">
               <span>{compact(item.inputTokens + item.outputTokens + item.reasoningTokens)} {t("agents.tokens")}</span>
@@ -439,10 +439,13 @@
 
   .usage-bar span {
     display: block;
+    width: 100%;
     height: 100%;
     border-radius: inherit;
+    transform: scaleX(0);
+    transform-origin: left center;
     background: linear-gradient(90deg, var(--live-accent), #93c5fd);
-    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .usage-meta {

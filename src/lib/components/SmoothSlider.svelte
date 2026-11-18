@@ -22,8 +22,18 @@
     onInput?.(read(event));
   }
 
+  function grab(event: PointerEvent): void {
+    if (disabled) return;
+    try {
+      (event.currentTarget as HTMLInputElement).setPointerCapture(event.pointerId);
+    } catch {
+      /* pointer capture is optional */
+    }
+  }
+
   function commit(event: Event): void {
-    if (!dragging || disabled) return;
+    // pointerup and change both fire on release; only the first one may seek.
+    if (disabled || !dragging) return;
     dragging = false;
     onCommit?.(read(event));
   }
@@ -42,9 +52,11 @@
     value={Math.round(clamped * 1000)}
     {disabled}
     aria-label={label}
+    onpointerdown={grab}
     oninput={input}
     onchange={commit}
     onpointerup={commit}
+    onpointercancel={commit}
   />
 </div>
 
@@ -69,6 +81,13 @@
     border-radius: 999px;
     background: var(--surface-strong);
     overflow: hidden;
+    transition: height 0.22s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .slider:hover .rail,
+  .slider.dragging .rail {
+    height: 5px;
+    margin-top: -2.5px;
   }
 
   .fill {
@@ -83,7 +102,10 @@
       var(--live-accent)
     );
     box-shadow: 0 0 10px color-mix(in srgb, var(--live-accent) 45%, transparent);
-    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+    /* One frame of media sampling is ~120 ms; a matching linear glide keeps
+       the bar continuous instead of stepping. */
+    transition: transform 0.18s linear;
+    will-change: transform;
   }
 
   .thumb {
@@ -100,9 +122,9 @@
     transform: translate(-50%, -50%);
     pointer-events: none;
     transition:
-      left 0.16s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 0.2s cubic-bezier(0.34, 1.5, 0.64, 1),
-      box-shadow 0.2s ease;
+      left 0.18s linear,
+      transform 0.24s cubic-bezier(0.34, 1.4, 0.64, 1),
+      box-shadow 0.24s ease;
   }
 
   .slider:hover .thumb,

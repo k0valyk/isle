@@ -6,7 +6,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use windows::core::PCWSTR;
 use windows::Win32::System::Performance::{
-    PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterArrayW, PdhOpenQueryW,
+    PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterArrayW,
+    PdhGetFormattedCounterValue, PdhOpenQueryW, PDH_FMT_COUNTERVALUE,
     PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA,
 };
 
@@ -70,6 +71,8 @@ pub struct SystemStats {
     pub disk: f32,
     pub disk_used_gb: f32,
     pub disk_total_gb: f32,
+    pub disk_load: Option<f32>,
+    pub disk_temp: Option<f32>,
     pub net_down: f64,
     pub net_up: f64,
     pub cpu_temp: Option<f32>,
@@ -266,6 +269,51 @@ impl PdhArrayCounter {
     }
 }
 
+struct PdhScalarCounter {
+    query: PDH_HQUERY,
+    counter: PDH_HCOUNTER,
+}
+
+impl PdhScalarCounter {
+    fn new(path: &str) -> Option<Self> {
+        let wide: Vec<u16> = format!("{path}\0").encode_utf16().collect();
+        unsafe {
+            let mut query = PDH_HQUERY::default();
+            if PdhOpenQueryW(PCWSTR::null(), 0, &mut query) != 0 {
+                return None;
+            }
+            let mut counter = PDH_HCOUNTER::default();
+            if PdhAddEnglishCounterW(query, PCWSTR(wide.as_ptr()), 0, &mut counter) != 0 {
+                return None;
+            }
+            let _ = PdhCollectQueryData(query);
+            Some(Self { query, counter })
+        }
+    }
+
+    fn read(&self) -> Option<f32> {
+        unsafe {
+            if PdhCollectQueryData(self.query) != 0 {
+                return None;
+            }
+            let mut value: PDH_FMT_COUNTERVALUE = std::mem::zeroed();
+            let mut kind = 0u32;
+            if PdhGetFormattedCounterValue(
+                self.counter,
+                PDH_FMT_DOUBLE,
+                Some(&mut kind),
+                &mut value,
+            ) != 0
+            {
+                return None;
+            }
+            let raw = value.Anonymous.doubleValue;
+            raw.is_finite()
+                .then(|| (raw as f32).clamp(0.0, 100.0))
+        }
+    }
+}
+
 fn hidden_command(program: &str) -> std::process::Command {
     let mut command = std::process::Command::new(program);
     command.creation_flags(CREATE_NO_WINDOW);
@@ -348,15 +396,22 @@ fn read_gpu_temperature() -> Option<f32> {
         .filter(|value| *value > 0.0 && *value < 130.0)
 }
 
-fn read_cpu_temperature() -> Option<f32> {
-    // root/WMI exposes the ACPI thermal zone on many laptops. It is a
-    // best-effort metric: firmware may refuse the query, and the call needs
-    // the sensor to report a tenth-of-a-Kelvin value.
+/// CPU and storage temperatures in a single PowerShell round-trip. Both are
+/// best effort: firmware or policies may hide one or both values.
+fn read_thermal_temperatures() -> (Option<f32>, Option<f32>) {
     let script = "$ErrorActionPreference='SilentlyContinue'; \
         $v = Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature \
         | Select-Object -First 1 -ExpandProperty CurrentTemperature; \
-        if ($v) { [math]::Round(($v / 10) - 273.15, 1) }";
-    let output = hidden_command("powershell")
+        $cpu = if ($v) { [math]::Round(($v / 10) - 273.15, 1) } else { $null }; \
+        $disk = Get-PhysicalDisk \
+        | Get-StorageReliabilityCounter \
+        | Where-Object { $_.Temperature -gt 0 } \
+        | Select-Object -First 1 -ExpandProperty Temperature; \
+        [PSCustomObject]@{ cpu=$cpu; disk=$disk } | ConvertTo-Json -Compress";
+    let parse = |value: Option<f32>, min: f32, max: f32| {
+        value.filter(|number| *number > min && *number < max)
+    };
+    let output = match hidden_command("powershell")
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -366,29 +421,46 @@ fn read_cpu_temperature() -> Option<f32> {
             script,
         ])
         .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .find_map(|line| line.trim().replace(',', ".").parse::<f32>().ok())
-        .filter(|value| *value > -20.0 && *value < 130.0)
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return (None, None),
+    };
+    let raw = String::from_utf8_lossy(&output.stdout);
+    let value: serde_json::Value = match serde_json::from_str(raw.trim()) {
+        Ok(value) => value,
+        Err(_) => return (None, None),
+    };
+    let number = |key: &str| {
+        value
+            .get(key)
+            .and_then(|item| item.as_f64())
+            .map(|item| item as f32)
+    };
+    (
+        parse(number("cpu"), -20.0, 130.0),
+        parse(number("disk"), -10.0, 110.0),
+    )
 }
 
-fn spawn_temperature_watcher(temperatures: Arc<Mutex<(Option<f32>, Option<f32>)>>, first: bool) {
+struct Temperatures {
+    cpu: Option<f32>,
+    gpu: Option<f32>,
+    disk: Option<f32>,
+}
+
+fn spawn_temperature_watcher(temperatures: Arc<Mutex<Temperatures>>, first: bool) {
     std::thread::spawn(move || {
         let mut attempts = 0;
         let mut delay = if first { 4_000 } else { 30_000 };
         loop {
             std::thread::sleep(Duration::from_millis(delay));
             let gpu = read_gpu_temperature();
-            let cpu = read_cpu_temperature();
+            let (cpu, disk) = read_thermal_temperatures();
             if let Ok(mut values) = temperatures.lock() {
-                *values = (cpu, gpu);
+                *values = Temperatures { cpu, gpu, disk };
             }
             attempts += 1;
-            if cpu.is_none() && gpu.is_none() {
+            if cpu.is_none() && gpu.is_none() && disk.is_none() {
                 // Do not keep spawning PowerShell forever on machines whose
                 // firmware or permissions do not expose a thermal zone.
                 delay = if attempts < 3 { 30_000 } else { 600_000 };
@@ -400,7 +472,11 @@ fn spawn_temperature_watcher(temperatures: Arc<Mutex<(Option<f32>, Option<f32>)>
 }
 
 pub fn init(app: AppHandle) {
-    let temperatures = Arc::new(Mutex::new((None, None)));
+    let temperatures = Arc::new(Mutex::new(Temperatures {
+        cpu: None,
+        gpu: None,
+        disk: None,
+    }));
     app.manage(StatsState {
         latest: Mutex::new(SystemStats::default()),
         hardware: Mutex::new(HardwareInfo::default()),
@@ -424,6 +500,7 @@ pub fn init(app: AppHandle) {
     std::thread::spawn(move || {
         let mut previous = None;
         let gpu = PdhArrayCounter::new("\\GPU Engine(*)\\Utilization Percentage");
+        let disk_load = PdhScalarCounter::new("\\PhysicalDisk(_Total)\\% Disk Time");
         let net_down = PdhArrayCounter::new("\\Network Interface(*)\\Bytes Received/sec");
         let net_up = PdhArrayCounter::new("\\Network Interface(*)\\Bytes Sent/sec");
         let (refresh, screen_width, screen_height) = read_screen();
@@ -435,6 +512,7 @@ pub fn init(app: AppHandle) {
             let (ram, used, total) = read_ram();
             let (disk, disk_used, disk_total) = read_disk();
             let gpu_value = gpu.as_ref().and_then(|counter| counter.read());
+            let disk_load_value = disk_load.as_ref().and_then(|counter| counter.read());
             let down = net_down
                 .as_ref()
                 .and_then(|counter| counter.read())
@@ -443,10 +521,10 @@ pub fn init(app: AppHandle) {
                 .as_ref()
                 .and_then(|counter| counter.read())
                 .unwrap_or(0.0) as f64;
-            let (cpu_temp, gpu_temp) = temperatures
+            let (cpu_temp, gpu_temp, disk_temp) = temperatures
                 .lock()
-                .map(|temps| *temps)
-                .unwrap_or((None, None));
+                .map(|temps| (temps.cpu, temps.gpu, temps.disk))
+                .unwrap_or((None, None, None));
             let hardware = app
                 .state::<StatsState>()
                 .hardware
@@ -466,6 +544,8 @@ pub fn init(app: AppHandle) {
                 disk,
                 disk_used_gb: disk_used,
                 disk_total_gb: disk_total,
+                disk_load: disk_load_value,
+                disk_temp,
                 net_down: down,
                 net_up: up,
                 cpu_temp,

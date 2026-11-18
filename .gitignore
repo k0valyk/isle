@@ -18,6 +18,7 @@ src-tauri/gen/
 src-tauri/target/
 Isle-Setup.exe
 Isle-portable.zip
+latest.json
 android-companion/**/build/
 android-companion/.gradle/
 hooks/**/target/

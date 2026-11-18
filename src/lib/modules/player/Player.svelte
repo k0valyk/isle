@@ -11,6 +11,7 @@
     media,
     mediaControl,
     refreshVolume,
+    seekMedia,
     setVolume,
     toggleMute,
     volume,
@@ -71,13 +72,13 @@
 
   function seekCommit(next: number): void {
     dragging = false;
-    void mediaControl("seek", Math.round(next * duration));
+    if (duration <= 0) return;
+    seekMedia(next * duration);
   }
 
   function seekBy(seconds: number): void {
-    if (!current.active || duration <= 0) return;
-    const target = Math.max(0, Math.min(duration, media.position + seconds));
-    void mediaControl("seek", Math.round(target));
+    if (!current.active) return;
+    seekMedia(media.position + seconds);
   }
 </script>
 
@@ -282,13 +283,11 @@
   @keyframes track-in {
     from {
       opacity: 0;
-      transform: translateY(4px) scale(0.985);
-      filter: blur(2px);
+      transform: translateY(4px) scale(0.99);
     }
     to {
       opacity: 1;
       transform: translateY(0) scale(1);
-      filter: blur(0);
     }
   }
 
@@ -470,16 +469,19 @@
   .timeline {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     flex: none;
-    font-size: 9.5px;
-    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 550;
+    color: color-mix(in srgb, var(--fg) 74%, transparent);
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
   }
 
   .time {
-    min-width: 28px;
+    min-width: 34px;
     text-align: center;
+    line-height: 1;
   }
 
   .lyrics {
